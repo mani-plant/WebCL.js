@@ -4,33 +4,6 @@ An easy to use, light weight Javascript library for doing general purpose comput
 ## Introduction
 A program to square all numbers in input array in parallel.
 
-```
-var myGPU = new GPU();
-
-var gpuMem_Inp = myGPU.Buffer(64); //an array of length 64 on gpu
-
-var gpuMem_Out = myGPU.Buffer(64); //more details on Buffer below
-
-for (var i = 0; i < 64; i += 1) {
-  gpuMem_Inp.data[i] = i; //setup data on CPU
-}
-
-gpuMem_Inp.alloc(); //send data to GPU
-
-var squareProg = myGPU.Program([gpuMem_Inp], [gpuMem_Out],
- `void main(void) {
-    float inp = readI(0, getIndex()); //read input  
-    out0 = inp*inp; //set output
-  }`
-);
-
-squareProg.exec();
-
-squareProg.transfer();
-
-console.log(gpuMem_Out);
-```
-
 ###### Initialization
 ```
 var myGPU = new GPU();
@@ -66,3 +39,32 @@ squareProg.exec();
 squareProg.transfer();
 console.log(gpuMem_Out);
 ```
+
+###### Full Code
+```
+var myGPU = new GPU();
+
+var gpuMem_Inp = myGPU.Buffer(64); //an array of length 64 on gpu
+
+var gpuMem_Out = myGPU.Buffer(64); //more details on Buffer below
+
+for (var i = 0; i < 64; i += 1) {
+  gpuMem_Inp.data[i] = i; //setup data on CPU
+}
+
+gpuMem_Inp.alloc(); //send data to GPU
+
+var squareProg = myGPU.Program([gpuMem_Inp], [gpuMem_Out],
+ `void main(void) {
+    float inp = readI(0, getIndex()); //read input  
+    out0 = inp*inp; //set output
+  }`
+);
+
+squareProg.exec();
+
+squareProg.transfer();
+
+console.log(gpuMem_Out);
+```
+
