@@ -108,7 +108,7 @@ myProg.exec()
 myProg.transfer()
 ```
 
-#### Example Matrix Multiplication and Addition of two 4x4 matrices
+## Working with Multiple Buffers: Example Matrix Multiplication and Addition of two 4x4 matrices
 In this example we will make a program that takes two input buffers of 4x4 and sets two output buffers of size 4x4, first output will be matrix product of the inputs and second output will be matrix sum of the inputs.
 ```
 //to be continued...
