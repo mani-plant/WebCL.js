@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Lib.js</title>
+</head>
+<body style="background: #000;">
+	<script type="text/javascript" src="WebCL.js"></script>
+	<script type="text/javascript">
+
+	var myGPU = new GPU();
+	var testData = myGPU.Buffer(64);
+	var testData2 = myGPU.Buffer(64);
+	var testData3 = myGPU.Buffer(64);
+	var testInp2 = myGPU.Buffer(64);
+	var testInp = myGPU.Buffer(64);
+	var sampleSize =64;
+	for (var i = 0; i < 256; i += 1) {
+	  testInp.data[i] = i;
+	  testInp2.data[i] = i;
+	}
+	testInp.alloc();
+	testInp2.alloc();
+
+	var myProg1 = myGPU.Program([testInp, testInp2], [testData],
+								
+							    `void main(void) {
+							   		
+									float inp = readI(0, getIndex());
+									float inp2 = readI(1, getIndex());
+								
+									commit(float[1](inp+inp2));
+								}`
+							);
+	var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],
+								
+							    `void main(void) {
+							   		
+									float inp = readI(0, getIndex());
+									float inp2 = readI(1, getIndex());
+								
+									commit(float[2](inp2*inp, inp2-inp));
+								}`
+							);
+	myProg1.exec();
+	console.log(testData);
+	myProg2.exec();
+	myProg2.transfer();
+	console.log(testData2);
+	console.log(testData3);
+	
+	</script>
+</body>
+</html>
