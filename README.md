@@ -88,6 +88,7 @@ readI(int bufferno, float index)
 ```out0 = x;
 out1 = y;
 ```
+```
 +-----------------------------+
 |Channel  | output_data_type  |
 +---------+-------------------+
@@ -96,7 +97,7 @@ out1 = y;
 |  3      | vec3              |
 |  4      | vec4              |
 +---------+-------------------+
-
+```
 #### Execute Program
 ```
 myProg.exec()
