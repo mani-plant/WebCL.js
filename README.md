@@ -72,19 +72,9 @@ buffer1.delete();
 Programs are basically fragment shader code in Open GL ES 3. These run on GPU in parallel for each output element.
 ```
 //myGPU.Program([input Buffers],[in-out Buffers],`shader program string`);
-var myGPU = new GPU();
-var buf1 = myGPU.Buffer(64);
-var buf2 = myGPU.Buffer(64);
-var buf3 = myGPU.Buffer(64);
-var buf4 = myGPU.Buffer(64);
-buf1.alloc();
-buf2.alloc();
-buf3.alloc();
-buf4.alloc();
-var addsub = myGPU.Program([buf1, buf2],[buf3, buf4],`shader program string`);
-//buf1 = input0, buf2 = input1, buf3 = output0, buf4 = output1
 ```
 Shader program is executed once for each output.
+#### Shader Program
 The following functions are available in shader program to access input and in-out buffers.
 ###### 1. Get current element: 
 ```getIndex()```
@@ -96,7 +86,8 @@ readI(int bufferno, float index)
 ```
 ###### 3. Set Output:
 ```out0 = x;
-out1 = y;```
+out1 = y;
+```
 +-----------------------------+
 |Channel  | output_data_type  |
 +---------+-------------------+
@@ -105,3 +96,19 @@ out1 = y;```
 |  3      | vec3              |
 |  4      | vec4              |
 +---------+-------------------+
+
+#### Execute Program
+```
+myProg.exec()
+```
+
+#### Transfer Output Buffers Back to CPU
+```
+myProg.transfer()
+```
+
+#### Example Matrix Multiplication and Addition of two 4x4 matrices
+In this example we will make a program that takes two input buffers of 4x4 and sets two output buffers of size 4x4, first output will be matrix product of the inputs and second output will be matrix sum of the inputs.
+```
+//to be continued...
+```
