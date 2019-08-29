@@ -134,47 +134,47 @@ Notes:
 In this example we will make a program that takes two input buffers of 4x4 and sets two output buffers of size 4x4, first output will be matrix product of the inputs and second output will be matrix sum of the inputs.
 ```
 var myGPU = new GPU();
-	var sampleSize =16;
-	var chnl = 1;
-	var outputBuffer1 = myGPU.Buffer(sampleSize,chnl);
-	var outputBuffer2 = myGPU.Buffer(sampleSize,chnl);
-	var inputBuffer1 = myGPU.Buffer(sampleSize,chnl);
-	var inputBuffer2 = myGPU.Buffer(sampleSize,chnl);
-	
-	for (var i = 0; i < sampleSize*chnl; i += 1) {
-	  inputBuffer1.data[i] = i;
-	  inputBuffer2.data[i] = i;
+var sampleSize =16;
+var chnl = 1;
+var outputBuffer1 = myGPU.Buffer(sampleSize,chnl);
+var outputBuffer2 = myGPU.Buffer(sampleSize,chnl);
+var inputBuffer1 = myGPU.Buffer(sampleSize,chnl);
+var inputBuffer2 = myGPU.Buffer(sampleSize,chnl);
+
+for (var i = 0; i < sampleSize*chnl; i += 1) {
+	inputBuffer1.data[i] = i;
+	inputBuffer2.data[i] = i;
+}
+inputBuffer1.alloc();
+inputBuffer2.alloc();
+
+var matMulSumProgram = myGPU.Program([inputBuffer1, inputBuffer2], [outputBuffer1, outputBuffer2],
+
+`vec2 get2dIndex(float index, float size){
+	float y = float(int(index)/int(size));
+	float x = index - size*y;
+	return vec2(x,y);
+}
+
+float get1dIndex(vec2 ind, float size){
+	return (ind.y*size + ind.x);
+}
+
+void main(void) {
+	float sop = 0.0;
+	vec2 out_index = get2dIndex(getIndex(), 4.);
+	for(int i=0;i<int(out_index.x);i++){
+		sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
 	}
-	inputBuffer1.alloc();
-	inputBuffer2.alloc();
-
-	var matMulSumProgram = myGPU.Program([inputBuffer1, inputBuffer2], [outputBuffer1, outputBuffer2],
-								
-										    `vec2 get2dIndex(float index, float size){
-										   			float y = float(int(index)/int(size));
-										   			float x = index - size*y;
-										   			return vec2(x,y);
-										   		}
-
-										   	float get1dIndex(vec2 ind, float size){
-										   		return (ind.y*size + ind.x);
-										   	}
-
-										    void main(void) {
-										   		float sop = 0.0;
-										   		vec2 out_index = get2dIndex(getIndex(), 4.);
-										   		for(int i=0;i<int(out_index.x);i++){
-										   			sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
-										   		}
-										   		for(int i=int(out_index.x);i<4;i++){
-										   			sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
-										   		}
-												float inp = readI(0, getIndex());
-												float inp2 = readI(1, getIndex());
-												out1 = sop;
-												out0 = inp+inp2;
-											}`
-										);
+	for(int i=int(out_index.x);i<4;i++){
+		sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
+	}
+	float inp = readI(0, getIndex());
+	float inp2 = readI(1, getIndex());
+	out1 = sop;
+	out0 = inp+inp2;
+}`
+);
 
 matMulSumProgram.exec();
 matMulSumProgram.transfer();
