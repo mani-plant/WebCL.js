@@ -107,9 +107,77 @@ myProg.exec()
 ```
 myProg.transfer()
 ```
+## Open GL ES 3 Functions
+The following functions are available in shader code for reading inputs, output and setting output.
+```
+float getIndex() //This thread will write to output_buffer[index]
+float readI(int i, float index)	//Read i-th input_buffer[index]
+// Use these functions for more than 1 channel(max 4-r,g,b,a aka x,y,z,w) input buffers
+float readI(int i, float index)
+float readIR(int i, float index)
+float readIG(int i, float index)
+float readIB(int i, float index)
+float readIA(int i, float index)
+vec2 readIRG(int i, float index)
+vec3 readIRGB(int i, float index)
+vec4 readIRGBA(int i, float index)
+
+//to set output use
+out<i> = some float value
+//where i = 0,1,2 ... number of output buffers
+```
+Notes:
+1. You can read any index of the input buffers but only current index of the output buffers.
+2. Any buffer can be used with any program any number of times without the need to transfer buffer data back to cpu
 
 ## Working with Multiple Buffers: Example Matrix Multiplication and Addition of two 4x4 matrices
 In this example we will make a program that takes two input buffers of 4x4 and sets two output buffers of size 4x4, first output will be matrix product of the inputs and second output will be matrix sum of the inputs.
 ```
-//to be continued...
+var myGPU = new GPU();
+	var sampleSize =16;
+	var chnl = 1;
+	var outputBuffer1 = myGPU.Buffer(sampleSize,chnl);
+	var outputBuffer2 = myGPU.Buffer(sampleSize,chnl);
+	var inputBuffer1 = myGPU.Buffer(sampleSize,chnl);
+	var inputBuffer2 = myGPU.Buffer(sampleSize,chnl);
+	
+	for (var i = 0; i < sampleSize*chnl; i += 1) {
+	  inputBuffer1.data[i] = i;
+	  inputBuffer2.data[i] = i;
+	}
+	inputBuffer1.alloc();
+	inputBuffer2.alloc();
+
+	var matMulSumProgram = myGPU.Program([inputBuffer1, inputBuffer2], [outputBuffer1, outputBuffer2],
+								
+										    `vec2 get2dIndex(float index, float size){
+										   			float y = float(int(index)/int(size));
+										   			float x = index - size*y;
+										   			return vec2(x,y);
+										   		}
+
+										   	float get1dIndex(vec2 ind, float size){
+										   		return (ind.y*size + ind.x);
+										   	}
+
+										    void main(void) {
+										   		float sop = 0.0;
+										   		vec2 out_index = get2dIndex(getIndex(), 4.);
+										   		for(int i=0;i<int(out_index.x);i++){
+										   			sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
+										   		}
+										   		for(int i=int(out_index.x);i<4;i++){
+										   			sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
+										   		}
+												float inp = readI(0, getIndex());
+												float inp2 = readI(1, getIndex());
+												out1 = sop;
+												out0 = inp+inp2;
+											}`
+										);
+
+matMulSumProgram.exec();
+matMulSumProgram.transfer();
+console.log(outputBuffer1);
+console.log(outputBuffer2);
 ```
