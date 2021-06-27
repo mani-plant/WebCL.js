@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+   <script src="https://cdn.plot.ly/plotly-2.0.0.min.js"></script>
+</head>
+<body>
+    <div id="plot"></div>
+    <script type="text/javascript">
+        function binarySearch(x, cmp){
+    let ln = 1;
+    while(cmp(x, ln) < 0){
+        let nln = Math.floor(ln/2);
+        if(nln === ln) return false;
+        ln = nln;
+    }
+    let un = 1;
+    while(cmp(x, un) > 0){
+        un *= 2;
+    }
+    while(ln !== un){
+        let n = Math.floor((ln+un)/2);
+        if(cmp(x,n) > 0){
+            if(ln === n) return n;
+            ln = n;
+        }else if(cmp(x,n) < 0){
+            un = n;
+            // if(un === n) return n;
+        }else{
+            return n;
+        }
+    }
+    return ln;
+}
+
+//==========================================================================================//
+//==========================================================================================//
+
+// random number generators
+
+// 1. uniform between 0 and 1 -> Math.random()
+
+// 2. uniform between a and a+w
+
+function uniformRandom(a = 0, w = 1){
+    return(Math.random()*w + a);
+}
+
+// 3. uniform k between (0,a) , (1-k)k between (a, 2a) , (1-(1-k)k)k between (2a,3a)....
+// => k , k - k2 , k-k2+k3 .... between (0,a),(a,2a),(2a,3a) ... respectively
+
+function stepUniformPositive(a, k){
+    let p = Math.random();
+    let n = binarySearch(p, function(x, n){
+        let tn = (1 - Math.pow(1-k, n));
+        if(x === tn) return 0;
+        if(x < tn) return -1;
+        if(x > tn) return 1;
+    });
+    return(uniformRandom(n*a, a));
+    // return n;
+}
+
+function stepUniform(a, k){
+    let r = stepUniformPositive(a,k);
+    let m = Math.random() > 0.5 ? 1 : -1;
+    return r*m;
+}
+        //chromosome - object
+        //  mutate()
+        //  cross(chromosome)
+        //
+
+        // population(of chromosomes) -> mutation -> crossover ---genome to phenome---> individuals -> fitness -> probability -> next generation population
+
+        function Chromosome(length){
+            this.data = new Array(length);
+            this.length = length;
+            this.data.fill(0);
+            this.data = this.data.map(x => Math.random()*2-1);
+            this.mutate = function(p, scope, f1 = function(){return x;}, f2 = function(){return x;},cap = false){
+                this.data = this.data.map(function(x){
+                    if(Math.random() < p){
+                        if(cap){
+                            return Math.max(Math.min(x + f2((Math.random()*2 - 1)*f1(scope)), 1.0),-1.0);
+                        }else{
+                            return (x + stepUniform(scope, 0.25) );
+                        }
+                    }else{
+                        return x;
+                    }
+                });
+            }
+        }
+        function crossChromosomes(ch1, ch2, split){
+            let k  = {ch1, ch2};
+            let c = new Chromosome(ch1.length);
+            c.data = c.data.map(function(x, i){
+                let ch1 = this.ch1;
+                let ch2 = this.ch2;
+                if(i<split){
+                    return ch1.data[i]
+                }else{
+                    return ch2.data[i];
+                }
+            }.bind(k));
+            return c;
+        }
+
+        function generatePopulation(size, len){
+            let population = [];
+            for(let i=0;i<size;i++)
+                population.push(new Chromosome(len));
+            return population;
+        }
+
+
+        function Population(chromosomeLength, populationSize, chromosomeToIndividual, fitnessFn, probabilityFn, chromosomes = null){
+            this.data = new Array(populationSize);
+            this.data.fill(0);
+            this.sumChromosome = new Chromosome(chromosomeLength);
+            this.sumChromosome.data.fill(0);
+            this.data = this.data.map(function(x, i){
+                let ch;
+                if(chromosomes){
+                    ch = chromosomes[i];
+                }else{
+                    ch = new Chromosome(chromosomeLength);
+                }
+                let ret = {
+                    chromosome: ch,
+                    individual: null,
+                    fitness: null,
+                    probability: null
+                };
+                this.sumChromosome.data = this.sumChromosome.data.map(function(x,i){
+                    return(x + ret.chromosome[i]);
+                });
+                return ret;
+            }.bind(this));
+            this.avgChromosome = new Chromosome(chromosomeLength);
+            this.avgChromosome.data = this.avgChromosome.data.map(function(x){
+                return(x/populationSize);
+            });
+            this.initIndividuals = function(){
+                this.data.map(function(x){
+                    x.individual = chromosomeToIndividual(x.chromosome);
+                    return x;
+                });
+            }
+
+            this.calculateFitness = function(){
+                this.totalFitness = 0;
+                this.maxFitness = 0;
+                this.data.map(function(x){
+                    x.fitness = fitnessFn(x.individual);
+                    this.totalFitness += x.fitness;
+                    this.maxFitness = Math.max(this.maxFitness, x.fitness);
+                    return x;
+                }.bind(this));
+                this.avgFitness = this.totalFitness/populationSize;
+            }
+
+            this.calculateProbability = function(){
+                this.sumProbability = 0;
+                this.data.map(function(x){
+                    x.probability = probabilityFn(x.chromosome, x.individual, x.fitness, this.avgChromosome, this.totalFitness);
+                    this.sumProbability += x.probability;
+                    return x;
+                }.bind(this));
+            }
+
+            this.produceNextGeneration = function(split, mutation, step){
+                // 1. select surviving genes
+                // 2. cross over
+                // 3. mutate
+                let survivors = [];
+                let nextGen = [];
+                // let sms = {
+                //  split, mutation, step, nextGen, survivors
+                // };
+                // this.data.map(function(x){
+                //  let r= Math.random();
+                //  console.log(x.probability, r);
+                //  if(r <= x.probability){
+                //      this.survivors.push(x);
+                //      console.log("t");
+                //  }else{
+                //      console.log("f");
+                //  }
+                //  return x;
+                // }.bind(sms));
+                // console.log(survivors);
+                // survivors.map(function(x){
+                //  this.survivors.map(function(y){
+                //      let x = this.x;
+                //      let ch = crossChromosomes(x,y,this.split);
+                //      ch.mutate(this.mutation, this.step);
+                //      this.nextGen.push(ch);
+                //      return y;
+                //  }.bind({...this, x}));
+                //  return x;
+                // }.bind(sms));
+                /*
+                n2 - n - 2 = 0
+                */
+                // let numSurvivors = Math.floor((1 + Math.sqrt(1 + 8*populationSize))/2);
+                let numSurvivors = Math.ceil(Math.sqrt(populationSize));
+                let sortedData = this.data.sort(function(a,b){
+                    return(b.probability - a.probability);
+                });
+                for(let i=0;i<numSurvivors;i++){
+                    survivors.push(sortedData[i]);
+                }
+                // console.log(survivors);
+                for(let i in survivors){
+                    let x = survivors[i];
+                    for(let j in survivors){
+                        let y = survivors[j];
+                        let ch = crossChromosomes(x.chromosome,y.chromosome,split);
+                        ch.mutate(mutation, step);
+                        // console.log(x.chromosome.data,y.chromosome.data,ch.data)
+                        nextGen.push(ch);
+                    }
+                }
+                let ret = new Population(chromosomeLength, nextGen.length, chromosomeToIndividual, fitnessFn, probabilityFn, nextGen);
+                return ret;
+            }
+        }
+
+
+        /////////////////////////////////
+var N = 100,
+  a = 0,
+  b = 30;
+  c = 10;
+  d = 20;
+        let chromosomeToIndividual = function(ch){
+            return {
+                x: ch.data[0],
+                y: ch.data[1]
+            };
+        }
+
+        let individualFitness = function(indi){
+            let x = indi.x;
+            let y = indi.y;
+            if(x<a || y<a) return 0;
+            if(x >b || y>b) return 0;
+            if((x > d && y > d) || (x < c || y < c)){
+                let w = 0.4;
+                let s = 2/Math.sqrt((x+y));
+                return(Math.min(Math.sin(w*x)*Math.sin(w*x)*Math.cos(w*y)*Math.cos(w*y)*(x+y), 1000));
+            }
+            return 0;
+            // if(x > b || y > b || x < a || y < a) return 0;
+            
+        }
+
+        let indiprobability = function(chromosome, individual, fitness, avgChromosome, totalFitness){
+            let p1 = (fitness/totalFitness);
+            let avgmag = Math.sqrt(avgChromosome.data[0]*avgChromosome.data[0] + avgChromosome.data[1]*avgChromosome.data[1]);
+            if(avgmag == 0) return p1;
+            let x1 = avgChromosome.data[0]/avgmag;
+            let y1 = avgChromosome.data[1]/avgmag;
+            let mag = Math.sqrt(chromosome.data[0]*chromosome.data[0] + chromosome.data[1]*chromosome.data[1]);
+            if(mag == 0) return p1;
+            let x2 = chromosome.data[0]/mag;
+            let y2  = chromosome.data[1]/mag;
+            let p2 = x1*x2 + y1*y2;
+            p2 = Math.sqrt(1 - p2*p2);
+            return p1;
+        }
+
+        
+
+
+
+
+
+
+
+// function normal() {
+//     var x = 0,
+//         y = 0,
+//         rds, c;
+//     do {
+//         x = Math.random() * 2 - 1;
+//         y = Math.random() * 2 - 1;
+//         rds = x * x + y * y;
+//     } while (rds == 0 || rds > 1);
+//     c = Math.sqrt(-2 * Math.log(rds) / rds); // Box-Muller transform
+//     return x * c; // throw away extra sample y * c
+// }
+
+
+
+var step = (b - a) / N;
+let x = [];
+let y = [];
+
+for(var i = a; i < b; i+=step){
+    for(var j=a;j<b;j+=step){
+        let _x = i;
+        let _y = j;
+        let z = individualFitness({x:_x,y:_y});
+        // z = Math.min(Math.sin(w*_x)*Math.sin(w*_x)*Math.cos(w*_y)*Math.cos(w*_y)*Math.exp(s*(_x+_y)), 100);
+        // console.log(z);
+        for(let k=0;k<z;k++){
+            x.push(i);
+            y.push(j);
+        }
+    }
+}
+// console.log(x);
+// console.log(y);
+
+
+var trace2 = {
+  x: x,
+  y: y,
+  name: 'density',
+  ncontours: 30,
+  colorscale: 'Hot',
+  reversescale: true,
+  showscale: false,
+  type: 'histogram2dcontour'
+};
+
+let pop = new Population(2, 500, chromosomeToIndividual, individualFitness, indiprobability);
+step = 0.5;
+mutation = 0.9;
+    async function ex(){
+        for(let i=0;i<1000;i++){
+            pop.initIndividuals();
+            pop.calculateFitness();
+            pop.calculateProbability();
+            console.log(pop.avgFitness, pop.maxFitness);
+            let popx = [];
+            let popy = [];
+            for(let j in pop.data){
+                let c = pop.data[j];
+                popx.push(c.individual.x);
+                popy.push(c.individual.y);
+            }
+            pop = pop.produceNextGeneration(1, mutation, step);
+            if(i%10 == 0){
+                var trace1 = {
+                    x: popx,
+                    y: popy,
+                  mode: 'markers',
+                  name: 'points',
+                  marker: {
+                    color: 'rgb(0,0,255)',
+                    size: 5,
+                    opacity: 0.8
+                  },
+                  type: 'scatter'
+                };
+                var data = [trace1, trace2];
+                var layout = {
+                  showlegend: false,
+                  autosize: false,
+                  width: 1200,
+                  height: 1100,
+                  margin: {t: 50},
+                  hovermode: 'closest',
+                  bargap: 0,
+                  // xaxis: {
+                  //   domain: [0, 0.85],
+                  //   showgrid: false,
+                  //   zeroline: false
+                  // },
+                  // yaxis: {
+                  //   domain: [0, 0.85],
+                  //   showgrid: false,
+                  //   zeroline: false
+                  // },
+                  // xaxis2: {
+                  //   domain: [0.85, 1],
+                  //   showgrid: false,
+                  //   zeroline: false
+                  // },
+                  // yaxis2: {
+                  //   domain: [0.85, 1],
+                  //   showgrid: false,
+                  //   zeroline: false
+                  // }
+                };
+                Plotly.newPlot('plot', data, layout);
+                // console.log(pop);
+                await new Promise(r => setTimeout(r, 500));
+            }
+            
+        }
+    }
+    ex();
+    </script>
+</body>
+</html>
