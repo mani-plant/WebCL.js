@@ -1,0 +1,26 @@
+{
+  "name": "webcl.js",
+  "version": "0.0.1",
+  "description": "An easy to use, light weight Javascript library for doing general purpose computations on GPU in browser.",
+  "main": "WebCL.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ManikyaSingh/WebCL.js.git"
+  },
+  "keywords": [
+    "WebCL",
+    "WebGPU",
+    "WebGPGPU",
+    "GPGPU",
+    "GPU"
+  ],
+  "author": "Manikya Singh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ManikyaSingh/WebCL.js/issues"
+  },
+  "homepage": "https://github.com/ManikyaSingh/WebCL.js#readme"
+}

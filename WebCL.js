@@ -216,3 +216,5 @@ function GPU(){
 	}
 
 }
+
+module.exports = GPU;
