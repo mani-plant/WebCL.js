@@ -6,7 +6,7 @@ function initGL(canvas){
 		desynchronized: true,
 		antialias: false,
 		failIfMajorPerformanceCaveat: false,
-		powerPreference: "default", // "high-performance , low-performance"
+		powerPreference: "default", // "high-performance , low-power"
 		premultipliedAlpha: true,
 		preserveDrawingBuffer: false,
 		xrCompatible: false
@@ -224,14 +224,16 @@ export function GPU(){
 			if(i === null){
 				for(let i=0;i<this.op.length;i++){
 					gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
+					// assuming a framebuffer is bound with the texture to read attached
+					// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
+					// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+					// console.log(gl, format, type);
 					gl.readPixels(0, 0, this.sizeO, this.sizeO, gl.RED, gl.FLOAT, this.op[i].data);
 				}
 			}else{
 				gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
 				gl.readPixels(0, 0, this.sizeO, this.sizeO, gl.RED, gl.FLOAT, this.op[i].data);
 			}
-			
-			
 		}
 	}
 
