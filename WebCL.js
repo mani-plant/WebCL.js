@@ -1,12 +1,23 @@
-export function GPU(){
-	var initGL = function(canvas) {
-		var gl = null;
-		var attr = {alpha : false, antialias : false};
-		gl = canvas.getContext("webgl2", attr);
-		if (!gl)
-			throw new Error("Unable to initialize WebGL2.");
-		return gl;
+function initGL(canvas){
+	let gl = canvas.getContext("webgl2", {
+		alpha: false, 
+		depth: false,
+		stencil: false,
+		desynchronized: true,
+		antialias: false,
+		failIfMajorPerformanceCaveat: false,
+		powerPreference: "default", // "high-performance , low-performance"
+		premultipliedAlpha: true,
+		preserveDrawingBuffer: false,
+		xrCompatible: false
+	});
+	if(!gl){
+		throw new Error("Unable to initialize WebGL2.");
 	}
+	return gl;
+}
+
+export function GPU(){
 	var gl = initGL(document.createElement('canvas'));
 
 	function getFrameBufferStatusMsg(frameBufferStatus){
@@ -21,8 +32,6 @@ export function GPU(){
 		// ext.FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR: If baseViewIndex is not the same for all framebuffer attachment points where the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is not NONE, the framebuffer is considered incomplete
 		return 'unknown status';
 	}
-	// var extensions = gl.getSupportedExtensions().reduce(function(r, v){r[v]=true;return r;}, {});
-	// console.log(extensions);
 	if (!(gl.getExtension('EXT_color_buffer_float')))
 		throw new Error('Error: EXT_color_buffer_float not supported.');
   
@@ -148,7 +157,6 @@ export function GPU(){
    			${comcode}
    		}
 		`;
-		console.log(stdlib);
 		var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 
 		gl.shaderSource(
