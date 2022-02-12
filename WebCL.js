@@ -14,11 +14,14 @@ function initGL(canvas){
 	if(!gl){
 		throw new Error("Unable to initialize WebGL2.");
 	}
+	if (!gl.getExtension('EXT_color_buffer_float')){
+		throw new Error('Error: EXT_color_buffer_float not supported.');
+	}
 	return gl;
 }
 
 export function GPU(){
-	var gl = initGL(document.createElement('canvas'));
+	let gl = initGL(document.createElement('canvas'));
 
 	function getFrameBufferStatusMsg(frameBufferStatus){
 		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
@@ -32,8 +35,6 @@ export function GPU(){
 		// ext.FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR: If baseViewIndex is not the same for all framebuffer attachment points where the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is not NONE, the framebuffer is considered incomplete
 		return 'unknown status';
 	}
-	if (!(gl.getExtension('EXT_color_buffer_float')))
-		throw new Error('Error: EXT_color_buffer_float not supported.');
   
 	var max_texture_size = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 	var max_texture_units = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
@@ -47,6 +48,7 @@ export function GPU(){
 	var positionBuffer = newBuffer([ -1, -1, 1, -1, 1, 1, -1, 1 ]);
 	var textureBuffer  = newBuffer([  0,  0, 1,  0, 1, 1,  0, 1 ]);
 	var indexBuffer    = newBuffer([  1,  2, 0,  3, 0, 2 ], Uint16Array, gl.ELEMENT_ARRAY_BUFFER);
+	
 	var vertexShaderCode = "#version 300 es"+
 	"\n"+
 	"in vec2 position;\n" +
