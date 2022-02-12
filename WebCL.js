@@ -128,7 +128,7 @@ export function GPU(){
 			comcode += 'out'+i+' = op['+i+'];\n';
 		}
 		var stdlib = `#version 300 es
-		precision mediump float;
+		precision highp float;
 		float sizeO = ${this.sizeO}.;
 		${texcode}
 		in vec2 pos;
