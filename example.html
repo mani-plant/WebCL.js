@@ -10,11 +10,11 @@
 	var myGPU = new GPU();
 	var sampleSize =64;
 	var chnl = 1;
-	var testData = myGPU.Buffer(sampleSize,chnl);
-	var testData2 = myGPU.Buffer(sampleSize,chnl);
-	var testData3 = myGPU.Buffer(sampleSize,chnl);
-	var testInp2 = myGPU.Buffer(sampleSize,chnl);
-	var testInp = myGPU.Buffer(sampleSize,chnl);
+	var testData = myGPU.Buffer(sampleSize);
+	var testData2 = myGPU.Buffer(sampleSize);
+	var testData3 = myGPU.Buffer(sampleSize);
+	var testInp2 = myGPU.Buffer(sampleSize);
+	var testInp = myGPU.Buffer(sampleSize);
 	
 	for (var i = 0; i < sampleSize*chnl; i += 1) {
 	  testInp.data[i] = i;
@@ -22,13 +22,14 @@
 	}
 	testInp.alloc();
 	testInp2.alloc();
+	console.log(testInp, testInp2);
 
 	var myProg1 = myGPU.Program([testInp, testInp2], [testData],
 								
 							    `void main(void) {
 							   		
-									float inp = readIR(0, getIndex());
-									float inp2 = readIR(1, getIndex());
+									float inp = readI0(getIndex());
+									float inp2 = readI1(getIndex());
 								
 									out0 = inp+inp2;
 								}`
@@ -37,8 +38,8 @@
 								
 							    `void main(void) {
 							   		
-									float inp = readIR(0, getIndex());
-									float inp2 = readIR(1, getIndex());
+									float inp = readI0(getIndex());
+									float inp2 = readI1(getIndex());
 								
 									out0 = inp2*inp;
 									out1 = inp2-inp;

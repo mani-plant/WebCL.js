@@ -1,4 +1,16 @@
 function GPU(){
+	function getFrameBufferStatusMsg(frameBufferStatus){
+		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
+		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT) return 'The attachment types are mismatched or not all framebuffer attachment points are framebuffer attachment complete.';
+		// gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: There is no attachment.
+		// gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS: Height and width of the attachment are not the same.
+		// gl.FRAMEBUFFER_UNSUPPORTED: The format of the attachment is not supported or if depth and stencil attachments are not the same renderbuffer.
+		// When using a WebGL 2 context, the following values can be returned additionally:
+		// gl.FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: The values of gl.RENDERBUFFER_SAMPLES are different among attached renderbuffers, or are non-zero if the attached images are a mix of renderbuffers and textures.
+		// When using the OVR_multiview2 extension, the following value can be returned additionally:
+		// ext.FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR: If baseViewIndex is not the same for all framebuffer attachment points where the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is not NONE, the framebuffer is considered incomplete
+		return 'unknown status';
+	}
 	var initGL = function(canvas) {
 		var gl = null;
 		var attr = {alpha : false, antialias : false};
@@ -8,8 +20,11 @@ function GPU(){
 		return gl;
 	}
 	var gl = initGL(document.createElement('canvas'));
+	// var extensions = gl.getSupportedExtensions().reduce(function(r, v){r[v]=true;return r;}, {});
+	// console.log(extensions);
 	if (!(flext = gl.getExtension('EXT_color_buffer_float')))
 		throw new Error('Error: EXT_color_buffer_float not supported.');
+  
 	var max_texture_size = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 	var max_texture_units = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
 	var max_color_units = gl.getParameter(gl.MAX_COLOR_ATTACHMENTS);
@@ -61,10 +76,7 @@ function GPU(){
 		else this.data = new Float32Array(this.mem);
 		this.mem = Math.sqrt(this.mem);
 		this.texture = null;
-		this.alloc = function(over = false){
-			if(over){
-				this.delete();
-			}
+		this.alloc = function(){
 			if(this.texture == null)
 				this.texture = createTexture(this.data, this.mem);
 			return this.texture;
@@ -87,6 +99,15 @@ function GPU(){
 			this.sizeI.push(this.inp[i].mem);
 		}
 		texcode += 'float size['+this.inp.length+'] = float[]('+this.sizeI.join('.,')+'.);\n';
+		let inpcode = '';
+		for(let i=0;i<this.inp.length; i++){
+			texcode += `float getTex${i}(vec2 coord) {
+				return texture(u_texture[${i}], coord).r;
+			}\n`;
+			inpcode += `float readI${i}(float index){
+				return getTex${i}(getPos(${i}, getInd(${i}, index)));
+			}\n`
+		}
 		this.sizeO = this.op[0].mem;
 		var opcode = '';
 		var comcode = '';
@@ -100,9 +121,6 @@ function GPU(){
 		${texcode}
 		in vec2 pos;
 		${opcode}
-		float get(int i, vec2 coord) {
-		  return texture(u_texture[i], coord).r;
-		}
 		
 		vec2 getPos(int i, vec2 ind){
    			return (ind + 0.5)/size[i];
@@ -114,9 +132,7 @@ function GPU(){
    			return vec2(x,y);
    		}
 
-   		float readI(int i, float index){
-   			return get(i, getPos(i, getInd(i, index)));
-   		}
+   		${inpcode}
 		
 		vec2 indXY(){
    			return pos*sizeO - 0.5 ;
@@ -140,10 +156,10 @@ function GPU(){
 		);
 		gl.compileShader(fragmentShader);
 		if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-			var LOC = code.split('\n');
+			var LOC = (stdlib + code).split('\n');
 			var dbgMsg = "ERROR: Could not build shader (fatal).\n\n------------------ KERNEL CODE DUMP ------------------\n"
 			for (var nl = 0; nl < LOC.length; nl++)
-				dbgMsg += (stdlib.split('\n').length + nl) + "> " + LOC[nl] + "\n";
+				dbgMsg += (1 + nl) + "> " + LOC[nl] + "\n";
 			dbgMsg += "\n--------------------- ERROR  LOG ---------------------\n" + gl.getShaderInfoLog(fragmentShader)
 			throw new Error(dbgMsg);
 		}
@@ -169,9 +185,10 @@ function GPU(){
 				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, this.op[i].texture, 0);
 				colAt.push(gl.COLOR_ATTACHMENT0+i);
 			}
-			var frameBufferStatus = (gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE);
-			if (!frameBufferStatus)
-				throw new Error('ERROR: ' + frameBufferStatus.message);
+			var frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+			if (frameBufferStatus !== gl.FRAMEBUFFER_COMPLETE){
+				throw new Error('ERROR: ' + getFrameBufferStatusMsg(frameBufferStatus));
+			}
 			gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 			gl.enableVertexAttribArray(aTexture);
 			gl.vertexAttribPointer(aTexture, 2, gl.FLOAT, false, 0, 0);
@@ -217,4 +234,4 @@ function GPU(){
 
 }
 
-module.exports = GPU;
+// module.exports = GPU;
