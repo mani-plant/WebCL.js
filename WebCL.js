@@ -1,4 +1,14 @@
-function GPU(){
+export function GPU(){
+	var initGL = function(canvas) {
+		var gl = null;
+		var attr = {alpha : false, antialias : false};
+		gl = canvas.getContext("webgl2", attr);
+		if (!gl)
+			throw new Error("Unable to initialize WebGL2.");
+		return gl;
+	}
+	var gl = initGL(document.createElement('canvas'));
+
 	function getFrameBufferStatusMsg(frameBufferStatus){
 		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
 		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT) return 'The attachment types are mismatched or not all framebuffer attachment points are framebuffer attachment complete.';
@@ -11,18 +21,9 @@ function GPU(){
 		// ext.FRAMEBUFFER_INCOMPLETE_VIEW_TARGETS_OVR: If baseViewIndex is not the same for all framebuffer attachment points where the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is not NONE, the framebuffer is considered incomplete
 		return 'unknown status';
 	}
-	var initGL = function(canvas) {
-		var gl = null;
-		var attr = {alpha : false, antialias : false};
-		gl = canvas.getContext("webgl2", attr);
-		if (!gl)
-			throw new Error("Unable to initialize WebGL2.");
-		return gl;
-	}
-	var gl = initGL(document.createElement('canvas'));
 	// var extensions = gl.getSupportedExtensions().reduce(function(r, v){r[v]=true;return r;}, {});
 	// console.log(extensions);
-	if (!(flext = gl.getExtension('EXT_color_buffer_float')))
+	if (!(gl.getExtension('EXT_color_buffer_float')))
 		throw new Error('Error: EXT_color_buffer_float not supported.');
   
 	var max_texture_size = gl.getParameter(gl.MAX_TEXTURE_SIZE);
@@ -233,5 +234,3 @@ function GPU(){
 	}
 
 }
-
-// module.exports = GPU;

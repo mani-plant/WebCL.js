@@ -4,9 +4,8 @@
 	<title>Lib.js</title>
 </head>
 <body style="background: #000;">
-	<script type="text/javascript" src="WebCL.js"></script>
-	<script type="text/javascript">
-
+	<script type="module">
+	import {GPU} from './WebCL.js';
 	var myGPU = new GPU();
 	var sampleSize =64;
 	var chnl = 1;
