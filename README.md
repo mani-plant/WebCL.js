@@ -199,4 +199,12 @@ console.log(outputBuffer2);
 		- width x height length sized textures for 2D buffers
 			- extend support for N-d buffers
 			- compare with previous approach
+
+- GPU.js comparision
+
+- Transpile JS TO Shaders
+
+- Maths library
+
+- ML library
 ```
