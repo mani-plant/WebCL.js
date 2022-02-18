@@ -36,20 +36,20 @@ export function GPU(){
 		return 'unknown status';
 	}
   
-	var max_texture_size = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-	var max_texture_units = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
-	var max_color_units = gl.getParameter(gl.MAX_COLOR_ATTACHMENTS);
+	let maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+	let maxTextureUnits = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
+	let maxColorUnits = gl.getParameter(gl.MAX_COLOR_ATTACHMENTS);
 	function newBuffer(data, f, e) {
-		var buf = gl.createBuffer();
+		let buf = gl.createBuffer();
 		gl.bindBuffer((e || gl.ARRAY_BUFFER), buf);
 		gl.bufferData((e || gl.ARRAY_BUFFER), new (f || Float32Array)(data), gl.STATIC_DRAW);
 		return buf;
 	}
-	var positionBuffer = newBuffer([ -1, -1, 1, -1, 1, 1, -1, 1 ]);
-	var textureBuffer  = newBuffer([  0,  0, 1,  0, 1, 1,  0, 1 ]);
-	var indexBuffer    = newBuffer([  1,  2, 0,  3, 0, 2 ], Uint16Array, gl.ELEMENT_ARRAY_BUFFER);
+	let positionBuffer = newBuffer([ -1, -1, 1, -1, 1, 1, -1, 1 ]);
+	let textureBuffer  = newBuffer([  0,  0, 1,  0, 1, 1,  0, 1 ]);
+	let indexBuffer    = newBuffer([  1,  2, 0,  3, 0, 2 ], Uint16Array, gl.ELEMENT_ARRAY_BUFFER);
 	
-	var vertexShaderCode = "#version 300 es"+
+	let vertexShaderCode = "#version 300 es"+
 	"\n"+
 	"in vec2 position;\n" +
 	"out vec2 pos;\n" +
@@ -59,7 +59,7 @@ export function GPU(){
 	"  pos = texture;\n" +
 	"  gl_Position = vec4(position.xy, 0.0, 1.0);\n" +
 	"}";
-	var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+	let vertexShader = gl.createShader(gl.VERTEX_SHADER);
 	gl.shaderSource(vertexShader, vertexShaderCode);
 	gl.compileShader(vertexShader);
 	if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
@@ -69,7 +69,7 @@ export function GPU(){
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	function createTexture(data, size) {
-		var texture = gl.createTexture();
+		let texture = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, texture);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -79,30 +79,44 @@ export function GPU(){
 		gl.bindTexture(gl.TEXTURE_2D, null);
 		return texture;
 	}
-	function Buffer(size, data=null){
-		this.length = size;
-		this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
-		if (Math.sqrt(this.mem) > max_texture_size)
+	function Buffer(size, arr=null){
+		let texSize = Math.ceil(Math.sqrt(size/4));
+		let bufferLength = texSize*texSize*4;
+		
+		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
+		
+		if (texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
-		if(data) this.data = data;
-		else this.data = new Float32Array(this.mem);
-		this.mem = Math.sqrt(this.mem);
-		this.texture = null;
+		}
+		
+		let data = new Float32Array(bufferLength);
+		if(arr){
+			this.set(arr);
+		}
+		let texture = null;
+		this.set = function(arr){
+			data = arr;
+		}
 		this.alloc = function(){
-			if(this.texture == null)
-				this.texture = createTexture(this.data, this.mem);
-			return this.texture;
+			if(texture == null){
+				texture = createTexture(data, texSize);
+			}
+			return texture;
 		}
 		this.delete = function(){
-			if(this.texture != null)
-				gl.deleteTexture(this.texture);
-			this.texture = null;
+			if(texture != null){
+				gl.deleteTexture(texture);
+			}
+			texture = null;
+		}
+		this.get = function(){
+			return data;
 		}
 	}
 	function Program(inp, op, code){
 		this.inp = inp;
 		this.op = op;
-		if(inp.length +op.length > max_texture_units + max_color_units){
+		if(inp.length +op.length > maxTextureUnits + maxColorUnits){
 			return false;
 		}
 		this.sizeI = [];	
