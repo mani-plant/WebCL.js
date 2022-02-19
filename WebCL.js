@@ -84,8 +84,7 @@ export function GPU(){
 			throw new Error("Buffer size must be > 0");
 		}
 		let texSize = Math.ceil(Math.sqrt(size/4));
-		let bufferLength = texSize*texSize*4;
-		let data = new Float32Array(bufferLength);
+		this.data = new Float32Array(texSize*texSize*4);
 		let texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
 		if (texSize > maxTextureSize){
@@ -95,13 +94,13 @@ export function GPU(){
 			this.set(arr);
 		}
 		this.set = function(arr){
-			for(let i=0;i<Math.min(size, arr.length);i++){
-				data[i] = arr[i];
+			for(let i=0;i<Math.min(this.data.length, arr.length);i++){
+				this.data[i] = arr[i];
 			}
 		}
 		this.alloc = function(){
 			if(texture == null){
-				texture = createTexture(data, texSize);
+				texture = createTexture(this.data, texSize);
 			}
 			return texture;
 		}
@@ -110,13 +109,6 @@ export function GPU(){
 				gl.deleteTexture(texture);
 			}
 			texture = null;
-		}
-		this.getRaw = function(){
-			return data;
-		}
-		this.get = function(){
-			let arr = new Array(size);
-			arr.forEach( (x,i, arr) => { arr[i] = data[i] } );
 		}
 	}
 	function Program(inp, op, code){
