@@ -79,22 +79,25 @@ export function GPU(){
 		gl.bindTexture(gl.TEXTURE_2D, null);
 		return texture;
 	}
-	function Buffer(size, data=null){
+	function Buffer(size, arr = null){
+		if(!(size > 0)){
+			throw new Error("Buffer size must be > 0");
+		}
 		let texSize = Math.ceil(Math.sqrt(size/4));
 		let bufferLength = texSize*texSize*4;
-		
+		let data = new Float32Array(bufferLength);
+		let texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
-		
 		if (texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
 		}
-		
-		if(!data){
-			data = new Float32Array(bufferLength);
+		if(arr){
+			this.set(arr);
 		}
-		let texture = null;
 		this.set = function(arr){
-			data = arr;
+			for(let i=0;i<Math.min(size, arr.length);i++){
+				data[i] = arr[i];
+			}
 		}
 		this.alloc = function(){
 			if(texture == null){
@@ -108,8 +111,12 @@ export function GPU(){
 			}
 			texture = null;
 		}
-		this.get = function(){
+		this.getRaw = function(){
 			return data;
+		}
+		this.get = function(){
+			let arr = new Array(size);
+			arr.forEach( (x,i, arr) => { arr[i] = data[i] } );
 		}
 	}
 	function Program(inp, op, code){
