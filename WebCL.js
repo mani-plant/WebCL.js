@@ -51,13 +51,13 @@ export function GPU(){
 	
 	let vertexShaderCode = "#version 300 es"+
 	"\n"+
-	"in vec2 position;\n" +
-	"out vec2 pos;\n" +
-	"in vec2 texture;\n" +
+	"in vec2 __webcl_position;\n" +
+	"out vec2 __webcl_pos;\n" +
+	"in vec2 __webcl_texture;\n" +
 	"\n" +
 	"void main(void) {\n" +
-	"  pos = texture;\n" +
-	"  gl_Position = vec4(position.xy, 0.0, 1.0);\n" +
+	"  __webcl_pos = texture;\n" +
+	"  gl_Position = vec4(__webcl_position.xy, 0.0, 1.0);\n" +
 	"}";
 	let vertexShader = gl.createShader(gl.VERTEX_SHADER);
 	gl.shaderSource(vertexShader, vertexShaderCode);
@@ -75,7 +75,7 @@ export function GPU(){
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, size, size, 0, gl.RED, gl.FLOAT, data);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, data);
 		gl.bindTexture(gl.TEXTURE_2D, null);
 		return texture;
 	}
@@ -85,6 +85,7 @@ export function GPU(){
 		}
 		let texSize = Math.ceil(Math.sqrt(size/4));
 		this.data = new Float32Array(texSize*texSize*4);
+		this.texSize = texSize;
 		let texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
 		if (texSize > maxTextureSize){
@@ -112,45 +113,46 @@ export function GPU(){
 		}
 	}
 	function Program(inp, op, code){
-		this.inp = inp;
-		this.op = op;
-		if(inp.length +op.length > maxTextureUnits + maxColorUnits){
-			return false;
+		if(inp.length > maxTextureUnits){
+			throw new Error("max input buffers supported = ", maxTextureUnits);
 		}
-		this.sizeI = [];	
-		var texcode = 'uniform sampler2D u_texture['+this.inp.length+'];\n';
-		for(let i=0;i<this.inp.length; i++){
-			this.sizeI.push(this.inp[i].mem);
+		if(op.length > maxColorUnits){
+			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
-		texcode += 'float size['+this.inp.length+'] = float[]('+this.sizeI.join('.,')+'.);\n';
+		let sizeI = [];	
+		let texcode = 'uniform sampler2D __webcl_uTexture['+inp.length+'];\n';
+		for(let i=0;i<inp.length; i++){
+			sizeI.push(inp[i].texSize);
+		}
+		texcode += 'float __webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
 		let inpcode = '';
-		for(let i=0;i<this.inp.length; i++){
-			texcode += `float getTex${i}(vec2 coord) {
-				return texture(u_texture[${i}], coord).r;
+		for(let i=0;i<inp.length; i++){
+			texcode += `float __webcl_getTex${i}(vec2 coord) {
+				return texture(__webcl_uTexture[${i}], coord).r;
 			}\n`;
-			inpcode += `float readI${i}(float index){
-				return getTex${i}(getPos(${i}, getInd(${i}, index)));
-			}\n`
+			inpcode += `float __webcl_readI${i}(float index){
+				return __webcl_getTex${i}(__webcl_getPos(${i}, __webcl_getInd(${i}, index)));
+			}\n`;
 		}
-		this.sizeO = this.op[0].mem;
-		var opcode = '';
-		var comcode = '';
-		for(let i=0;i<this.op.length;i++){
-			opcode += 'layout(location = '+i+') out float out'+i+';\n';
-			comcode += 'out'+i+' = op['+i+'];\n';
+		let sizeO = op[0].texSize;
+		let opcode = '';
+		let comcode = '';
+		for(let i=0;i<op.length;i++){
+			opcode += 'layout(location = '+i+') out float __webcl_out'+i+';\n';
+			comcode += '__webcl_out'+i+' = op['+i+'];\n';
 		}
-		var stdlib = `#version 300 es
+		let stdlib = `#version 300 es
 		precision highp float;
-		float sizeO = ${this.sizeO}.;
+		float __webcl_sizeO = ${sizeO}.;
 		${texcode}
-		in vec2 pos;
+		in vec2 __webcl_pos;
 		${opcode}
 		
-		vec2 getPos(int i, vec2 ind){
+		vec2 __webcl_getPos(int i, vec2 ind){
    			return (ind + 0.5)/size[i];
    		}
 
-		vec2 getInd(int i, float index){
+		vec2 __webcl_getInd(int i, float index){
    			float y = float(int(index)/int(size[i]));
    			float x = index - size[i]*y;
    			return vec2(x,y);
@@ -158,19 +160,21 @@ export function GPU(){
 
    		${inpcode}
 		
-		vec2 indXY(){
+		vec2 __webcl_indXY(){
    			return pos*sizeO - 0.5 ;
    		}
 
-   		float getIndex(){
+   		float __webcl_getIndex(){
    			vec2 ind = indXY();
    			return (ind.y*sizeO + ind.x);
    		}
 
-   		void commit(float op[${this.op.length}]){
+   		void __webcl_commit(float op[${op.length}]){
    			${comcode}
    		}
 		`;
+		console.log(vertexShaderCode);
+		console.log(stdlib);
 		var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 
 		gl.shaderSource(
@@ -194,11 +198,11 @@ export function GPU(){
 			if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
 			var v_texture = [];
-			for(let i=0;i<this.inp.length;i++){
-				v_texture.push(gl.getUniformLocation(this.program, 'u_texture['+i+']'));
+			for(let i=0;i<inp.length;i++){
+				v_texture.push(gl.getUniformLocation(this.program, '__webcl_uTexture['+i+']'));
 			}
-			var aPosition = gl.getAttribLocation(this.program, 'position');
-			var aTexture = gl.getAttribLocation(this.program, 'texture');
+			var aPosition = gl.getAttribLocation(this.program, '__webcl_position');
+			var aTexture = gl.getAttribLocation(this.program, '__webcl_texture');
 			gl.viewport(0, 0, this.sizeO, this.sizeO);
 			var fbo = gl.createFramebuffer();
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -234,17 +238,17 @@ export function GPU(){
 		}
 		this.transfer = function(i = null){
 			if(i === null){
-				for(let i=0;i<this.op.length;i++){
+				for(let i=0;i<op.length;i++){
 					gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
 					// assuming a framebuffer is bound with the texture to read attached
 					// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
 					// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
 					// console.log(gl, format, type);
-					gl.readPixels(0, 0, this.sizeO, this.sizeO, gl.RED, gl.FLOAT, this.op[i].data);
+					gl.readPixels(0, 0, sizeO, sizeO, gl.RED, gl.FLOAT, op[i].data);
 				}
 			}else{
 				gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
-				gl.readPixels(0, 0, this.sizeO, this.sizeO, gl.RED, gl.FLOAT, this.op[i].data);
+				gl.readPixels(0, 0, sizeO, sizeO, gl.RED, gl.FLOAT, op[i].data);
 			}
 		}
 	}
