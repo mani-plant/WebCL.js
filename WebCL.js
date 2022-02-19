@@ -79,7 +79,7 @@ export function GPU(){
 		gl.bindTexture(gl.TEXTURE_2D, null);
 		return texture;
 	}
-	function Buffer(size, arr=null){
+	function Buffer(size, data=null){
 		let texSize = Math.ceil(Math.sqrt(size/4));
 		let bufferLength = texSize*texSize*4;
 		
@@ -89,9 +89,8 @@ export function GPU(){
 			throw new Error("ERROR: Texture size not supported!");
 		}
 		
-		let data = new Float32Array(bufferLength);
-		if(arr){
-			this.set(arr);
+		if(!data){
+			data = new Float32Array(bufferLength);
 		}
 		let texture = null;
 		this.set = function(arr){
