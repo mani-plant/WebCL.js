@@ -51,13 +51,14 @@ export function GPU(){
 	
 	let vertexShaderCode = "#version 300 es"+
 	"\n"+
-	"in vec2 __webcl_position;\n" +
-	"out vec2 __webcl_pos;\n" +
-	"in vec2 __webcl_texture;\n" +
+	"precision highp float;\n"+
+	"in vec2 _webcl_position;\n" +
+	"out vec2 _webcl_pos;\n" +
+	"in vec2 _webcl_texture;\n" +
 	"\n" +
 	"void main(void) {\n" +
-	"  __webcl_pos = texture;\n" +
-	"  gl_Position = vec4(__webcl_position.xy, 0.0, 1.0);\n" +
+	"  _webcl_pos = _webcl_texture;\n" +
+	"  gl_Position = vec4(_webcl_position.xy, 0.0, 1.0);\n" +
 	"}";
 	let vertexShader = gl.createShader(gl.VERTEX_SHADER);
 	gl.shaderSource(vertexShader, vertexShaderCode);
@@ -120,39 +121,39 @@ export function GPU(){
 			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
 		let sizeI = [];	
-		let texcode = 'uniform sampler2D __webcl_uTexture['+inp.length+'];\n';
+		let texcode = 'uniform sampler2D _webcl_uTexture['+inp.length+'];\n';
 		for(let i=0;i<inp.length; i++){
 			sizeI.push(inp[i].texSize);
 		}
-		texcode += 'float __webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
+		texcode += 'float _webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
 		let inpcode = '';
 		for(let i=0;i<inp.length; i++){
-			texcode += `float __webcl_getTex${i}(vec2 coord) {
-				return texture(__webcl_uTexture[${i}], coord).r;
+			texcode += `float _webcl_getTex${i}(vec2 coord) {
+				return texture(_webcl_uTexture[${i}], coord).r;
 			}\n`;
-			inpcode += `float __webcl_readI${i}(float index){
-				return __webcl_getTex${i}(__webcl_getPos(${i}, __webcl_getInd(${i}, index)));
+			inpcode += `float _webcl_readI${i}(float index){
+				return _webcl_getTex${i}(_webcl_getPos(${i}, _webcl_getInd(${i}, index)));
 			}\n`;
 		}
 		let sizeO = op[0].texSize;
 		let opcode = '';
 		let comcode = '';
 		for(let i=0;i<op.length;i++){
-			opcode += 'layout(location = '+i+') out float __webcl_out'+i+';\n';
-			comcode += '__webcl_out'+i+' = op['+i+'];\n';
+			opcode += 'layout(location = '+i+') out float _webcl_out'+i+';\n';
+			comcode += '_webcl_out'+i+' = op['+i+'];\n';
 		}
 		let stdlib = `#version 300 es
 		precision highp float;
-		float __webcl_sizeO = ${sizeO}.;
+		float _webcl_sizeO = ${sizeO}.;
 		${texcode}
-		in vec2 __webcl_pos;
+		in vec2 _webcl_pos;
 		${opcode}
 		
-		vec2 __webcl_getPos(int i, vec2 ind){
+		vec2 _webcl_getPos(int i, vec2 ind){
    			return (ind + 0.5)/size[i];
    		}
 
-		vec2 __webcl_getInd(int i, float index){
+		vec2 _webcl_getInd(int i, float index){
    			float y = float(int(index)/int(size[i]));
    			float x = index - size[i]*y;
    			return vec2(x,y);
@@ -160,16 +161,16 @@ export function GPU(){
 
    		${inpcode}
 		
-		vec2 __webcl_indXY(){
+		vec2 _webcl_indXY(){
    			return pos*sizeO - 0.5 ;
    		}
 
-   		float __webcl_getIndex(){
+   		float _webcl_getIndex(){
    			vec2 ind = indXY();
    			return (ind.y*sizeO + ind.x);
    		}
 
-   		void __webcl_commit(float op[${op.length}]){
+   		void _webcl_commit(float op[${op.length}]){
    			${comcode}
    		}
 		`;
@@ -199,10 +200,10 @@ export function GPU(){
 				throw new Error('ERROR: Can not link GLSL program!');
 			var v_texture = [];
 			for(let i=0;i<inp.length;i++){
-				v_texture.push(gl.getUniformLocation(this.program, '__webcl_uTexture['+i+']'));
+				v_texture.push(gl.getUniformLocation(this.program, '_webcl_uTexture['+i+']'));
 			}
-			var aPosition = gl.getAttribLocation(this.program, '__webcl_position');
-			var aTexture = gl.getAttribLocation(this.program, '__webcl_texture');
+			var aPosition = gl.getAttribLocation(this.program, '_webcl_position');
+			var aTexture = gl.getAttribLocation(this.program, '_webcl_texture');
 			gl.viewport(0, 0, this.sizeO, this.sizeO);
 			var fbo = gl.createFramebuffer();
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
