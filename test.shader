@@ -16,10 +16,6 @@ in vec2 pos;
 
 layout(location = 0) out vec4 out0;
 
-		
-vec2 getPos(int i, vec2 ind){
-    return (ind + 0.5)/size[i];
-}
 
 vec2 getInd(int i, float index){
     float y = float(int(index)/int(size[i]));
@@ -27,12 +23,7 @@ vec2 getInd(int i, float index){
     return vec2(x,y);
 }
 
-float readI0(float index){
-    return getTex0(getPos(0, getInd(0, index)));
-}
-float readI1(float index){
-    return getTex1(getPos(1, getInd(1, index)));
-}
+
 
 vec2 indXY = pos*sizeO - 0.5;
 float curIndex = (indXY.y*sizeO + indXY.x)*4.;
@@ -42,7 +33,8 @@ float curIndex = (indXY.y*sizeO + indXY.x)*4.;
 #define getIndex() __webcl_curIndex + __webcl_i
 
 
-// #define readI(n, i) readI ## b ## (a)
+// #define __webcl_readI(n, i) readI ## b ## (a)
+#define __webcl_readI(n,i) getTex${I}(0.5 + getInd(i, index) )/size[i] );
 
 
 // expose functions getIndex(), -> returns index of output thread (position in buffer where output will be written to) 

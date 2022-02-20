@@ -26,9 +26,9 @@ export function GPU(){
 	function getFrameBufferStatusMsg(frameBufferStatus){
 		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
 		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT) return 'The attachment types are mismatched or not all framebuffer attachment points are framebuffer attachment complete.';
-		// gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: There is no attachment.
-		// gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS: Height and width of the attachment are not the same.
-		// gl.FRAMEBUFFER_UNSUPPORTED: The format of the attachment is not supported or if depth and stencil attachments are not the same renderbuffer.
+		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT) return 'There is no attachment.';
+		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS) return 'Height and width of the attachment are not the same.';
+		if(frameBufferStatus == gl.FRAMEBUFFER_UNSUPPORTED) return 'The format of the attachment is not supported or if depth and stencil attachments are not the same renderbuffer.';
 		// When using a WebGL 2 context, the following values can be returned additionally:
 		// gl.FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: The values of gl.RENDERBUFFER_SAMPLES are different among attached renderbuffers, or are non-zero if the attached images are a mix of renderbuffers and textures.
 		// When using the OVR_multiview2 extension, the following value can be returned additionally:
@@ -120,45 +120,44 @@ export function GPU(){
 		if(op.length > maxColorUnits){
 			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
-		// let sizeI = [];	
-		// let texcode = 'uniform sampler2D _webcl_uTexture['+inp.length+'];\n';
-		// for(let i=0;i<inp.length; i++){
-		// 	sizeI.push(inp[i].texSize);
-		// }
-		// texcode += 'float _webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
-		// let inpcode = '';
-		// for(let i=0;i<inp.length; i++){
-		// 	// texcode += `vec4 _webcl_getTex${i}(vec2 coord) {
-		// 	// 	return texture(_webcl_uTexture[${i}], coord);
-		// 	// }\n`;
-		// 	inpcode += `vec4 _webcl_readI${i}(float index){
-		// 		return _webcl_getTex${i}(_webcl_getPos(${i}, _webcl_getInd(${i}, index)));
-		// 	}\n`;
-		// }
+
 		let sizeO = op[0].texSize;
-		// let opcode = '';
-		let comcode = '';
-		for(let i=0;i<op.length;i++){
-			// opcode += 'layout(location = '+i+') out float _webcl_out'+i+';\n';
-			comcode += '_webcl_out'+i+' = op['+i+'];\n';
-		}
 		let fragmentShaderCode = `#version 300 es
 		precision highp float;
 		float _webcl_sizeI[${inp.length}] = float[](${inp.map(x => x.texSize).join('.,')}.);
 		float _webcl_sizeO = ${sizeO}.;
 		uniform sampler2D _webcl_uTexture[${inp.length}];
 		in vec2 _webcl_pos;
-		vec2 _webcl_indXY = _webcl_pos*_webcl_sizeO - 0.5;
-        float _webcl_curIndex = (_webcl_indXY.y*_webcl_sizeO + _webcl_indXY.x)*4.;
-        #define _webcl_getIndex() _webcl_curIndex + _webcl_i
-		${op.map((x,i) => `layout(location = ${i}) out float _webcl_out${i};`).join('\n')}
+
+        #define _webcl_getIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
+		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
+		
 		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-		#define _webcl_commit(n,val) _webcl_out ## n ## [int(_webcl_i)]
 
 		void main(void){
-			for(float _webcl_i=0.;_webcl_i<4.;_webcl_i+=1.){
-				${code}
-			}
+			#define _webcl_i 0.
+			#define _webcl_I 0
+				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
+				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+			#undef _webcl_i
+			#define _webcl_i 1.
+			#undef _webcl_I
+			#define _webcl_I 1
+				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
+				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+			#undef _webcl_i
+			#define _webcl_i 2.
+			#undef _webcl_I
+			#define _webcl_I 2
+				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
+				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+			#undef _webcl_i
+			#define _webcl_i 3.
+			#undef _webcl_I
+			#define _webcl_I 3
+				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
+				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+				
 		}
 		`;
 		console.log(vertexShaderCode);
@@ -178,26 +177,26 @@ export function GPU(){
 			dbgMsg += "\n--------------------- ERROR  LOG ---------------------\n" + gl.getShaderInfoLog(fragmentShader)
 			throw new Error(dbgMsg);
 		}
-		this.program = gl.createProgram();
-		gl.attachShader(this.program, vertexShader);
-		gl.attachShader(this.program, fragmentShader);
+		let program = gl.createProgram();
+		gl.attachShader(program, vertexShader);
+		gl.attachShader(program, fragmentShader);
 		this.exec = function(){
-			gl.linkProgram(this.program);
-			if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
+			gl.linkProgram(program);
+			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
 			var v_texture = [];
 			for(let i=0;i<inp.length;i++){
-				v_texture.push(gl.getUniformLocation(this.program, '_webcl_uTexture['+i+']'));
+				v_texture.push(gl.getUniformLocation(program, '_webcl_uTexture['+i+']'));
 			}
-			var aPosition = gl.getAttribLocation(this.program, '_webcl_position');
-			var aTexture = gl.getAttribLocation(this.program, '_webcl_texture');
-			gl.viewport(0, 0, this.sizeO, this.sizeO);
+			var aPosition = gl.getAttribLocation(program, '_webcl_position');
+			var aTexture = gl.getAttribLocation(program, '_webcl_texture');
+			gl.viewport(0, 0, sizeO, sizeO);
 			var fbo = gl.createFramebuffer();
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 			var colAt = [];
-			for(let i=0;i<this.op.length;i++){
-				this.op[i].alloc();
-				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, this.op[i].texture, 0);
+			for(let i=0;i<op.length;i++){
+				op[i].alloc();
+				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, op[i].texture, 0);
 				colAt.push(gl.COLOR_ATTACHMENT0+i);
 			}
 			var frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
@@ -215,10 +214,10 @@ export function GPU(){
 			gl.drawBuffers(colAt);
 
 
-			gl.useProgram(this.program);
-			for(let i=0;i<this.inp.length;i++){
+			gl.useProgram(program);
+			for(let i=0;i<inp.length;i++){
 				gl.activeTexture(gl.TEXTURE0+i);
-				gl.bindTexture(gl.TEXTURE_2D, this.inp[i].texture);
+				gl.bindTexture(gl.TEXTURE_2D, inp[i].texture);
 				gl.uniform1i(v_texture[i], i);
 			}
 			
@@ -232,11 +231,11 @@ export function GPU(){
 					// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
 					// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
 					// console.log(gl, format, type);
-					gl.readPixels(0, 0, sizeO, sizeO, gl.RED, gl.FLOAT, op[i].data);
+					gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
 				}
 			}else{
 				gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
-				gl.readPixels(0, 0, sizeO, sizeO, gl.RED, gl.FLOAT, op[i].data);
+				gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
 			}
 		}
 	}
