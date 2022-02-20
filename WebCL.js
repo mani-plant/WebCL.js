@@ -120,71 +120,58 @@ export function GPU(){
 		if(op.length > maxColorUnits){
 			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
-		let sizeI = [];	
-		let texcode = 'uniform sampler2D _webcl_uTexture['+inp.length+'];\n';
-		for(let i=0;i<inp.length; i++){
-			sizeI.push(inp[i].texSize);
-		}
-		texcode += 'float _webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
-		let inpcode = '';
-		for(let i=0;i<inp.length; i++){
-			texcode += `float _webcl_getTex${i}(vec2 coord) {
-				return texture(_webcl_uTexture[${i}], coord).r;
-			}\n`;
-			inpcode += `float _webcl_readI${i}(float index){
-				return _webcl_getTex${i}(_webcl_getPos(${i}, _webcl_getInd(${i}, index)));
-			}\n`;
-		}
+		// let sizeI = [];	
+		// let texcode = 'uniform sampler2D _webcl_uTexture['+inp.length+'];\n';
+		// for(let i=0;i<inp.length; i++){
+		// 	sizeI.push(inp[i].texSize);
+		// }
+		// texcode += 'float _webcl_size['+inp.length+'] = float[]('+sizeI.join('.,')+'.);\n';
+		// let inpcode = '';
+		// for(let i=0;i<inp.length; i++){
+		// 	// texcode += `vec4 _webcl_getTex${i}(vec2 coord) {
+		// 	// 	return texture(_webcl_uTexture[${i}], coord);
+		// 	// }\n`;
+		// 	inpcode += `vec4 _webcl_readI${i}(float index){
+		// 		return _webcl_getTex${i}(_webcl_getPos(${i}, _webcl_getInd(${i}, index)));
+		// 	}\n`;
+		// }
 		let sizeO = op[0].texSize;
-		let opcode = '';
+		// let opcode = '';
 		let comcode = '';
 		for(let i=0;i<op.length;i++){
-			opcode += 'layout(location = '+i+') out float _webcl_out'+i+';\n';
+			// opcode += 'layout(location = '+i+') out float _webcl_out'+i+';\n';
 			comcode += '_webcl_out'+i+' = op['+i+'];\n';
 		}
-		let stdlib = `#version 300 es
+		let fragmentShaderCode = `#version 300 es
 		precision highp float;
+		float _webcl_sizeI[${inp.length}] = float[](${inp.map(x => x.texSize).join('.,')}.);
 		float _webcl_sizeO = ${sizeO}.;
-		${texcode}
+		uniform sampler2D _webcl_uTexture[${inp.length}];
 		in vec2 _webcl_pos;
-		${opcode}
-		
-		vec2 _webcl_getPos(int i, vec2 ind){
-   			return (ind + 0.5)/size[i];
-   		}
+		vec2 _webcl_indXY = _webcl_pos*_webcl_sizeO - 0.5;
+        float _webcl_curIndex = (_webcl_indXY.y*_webcl_sizeO + _webcl_indXY.x)*4.;
+        #define _webcl_getIndex() _webcl_curIndex + _webcl_i
+		${op.map((x,i) => `layout(location = ${i}) out float _webcl_out${i};`).join('\n')}
+		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
+		#define _webcl_commit(n,val) _webcl_out ## n ## [int(_webcl_i)]
 
-		vec2 _webcl_getInd(int i, float index){
-   			float y = float(int(index)/int(size[i]));
-   			float x = index - size[i]*y;
-   			return vec2(x,y);
-   		}
-
-   		${inpcode}
-		
-		vec2 _webcl_indXY(){
-   			return pos*sizeO - 0.5 ;
-   		}
-
-   		float _webcl_getIndex(){
-   			vec2 ind = indXY();
-   			return (ind.y*sizeO + ind.x);
-   		}
-
-   		void _webcl_commit(float op[${op.length}]){
-   			${comcode}
-   		}
+		void main(void){
+			for(float _webcl_i=0.;_webcl_i<4.;_webcl_i+=1.){
+				${code}
+			}
+		}
 		`;
 		console.log(vertexShaderCode);
-		console.log(stdlib);
+		console.log(fragmentShaderCode);
 		var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 
 		gl.shaderSource(
 			fragmentShader,
-			stdlib + code
+			fragmentShaderCode
 		);
 		gl.compileShader(fragmentShader);
 		if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-			var LOC = (stdlib + code).split('\n');
+			var LOC = (fragmentShaderCode + code).split('\n');
 			var dbgMsg = "ERROR: Could not build shader (fatal).\n\n------------------ KERNEL CODE DUMP ------------------\n"
 			for (var nl = 0; nl < LOC.length; nl++)
 				dbgMsg += (1 + nl) + "> " + LOC[nl] + "\n";

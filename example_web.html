@@ -25,24 +25,22 @@
 
 	var myProg1 = myGPU.Program([testInp, testInp2], [testData],
 								
-							    `void main(void) {
-							   		
-									float inp = readI0(getIndex());
-									float inp2 = readI1(getIndex());
+							    `
+									float inp = _webcl_readI(0, _webcl_getIndex());
+									float inp2 = _webcl_readI(1, _webcl_getIndex());
 								
-									out0 = inp+inp2;
-								}`
+									_webcl_commit(0, inp+inp2);
+								`
 							);
 	var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],
 								
-							    `void main(void) {
-							   		
-									float inp = readI0(getIndex());
-									float inp2 = readI1(getIndex());
+							    `
+									float inp = _webcl_readI(0, _webcl_getIndex());
+									float inp2 = _webcl_readI(1, _webcl_getIndex());
 								
-									out0 = inp2*inp;
-									out1 = inp2-inp;
-								}`
+									_webcl_commit(0, inp2*inp);
+									_webcl_commit(1, inp2-inp);
+								`
 							);
 	myProg1.exec();
 	myProg1.transfer();
