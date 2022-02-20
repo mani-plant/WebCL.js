@@ -7,7 +7,7 @@
 	<script type="module">
 	import {GPU} from './WebCL.js';
 	var myGPU = new GPU();
-	var sampleSize = 36;
+	var sampleSize = 23;
 	var chnl = 1;
 	var testData = myGPU.Buffer(sampleSize);
 	var testData2 = myGPU.Buffer(sampleSize);
@@ -28,9 +28,8 @@
 							    `
 									float inp = _webcl_readI(0, _webcl_getIndex());
 									float inp2 = _webcl_readI(1, _webcl_getIndex());
-									_webcl_out0[0] = inp;
-									_webcl_out0[1] = inp2;
-									_webcl_out0[2] = _webcl_getIndex();
+									_webcl_commit0(inp+inp2);
+									_webcl_commit1(inp*inp2);
 								`
 							);
 	// var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],

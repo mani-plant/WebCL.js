@@ -136,28 +136,36 @@ export function GPU(){
 		${inp.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`)}
 		${op.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
 		void main(void){
-			float _webcl_index = floor(_webcl_getIndex());
 			#define _webcl_i 0.
 			#define _webcl_I 0
+			float _webcl_index = floor(_webcl_getIndex());
+			{
 				${code}
-			_webcl_index += 1.
+			}
 			#undef _webcl_i
 			#define _webcl_i 1.
 			#undef _webcl_I
 			#define _webcl_I 1
+			_webcl_index += 1.;
+			{
 				${code}
-			_webcl_index += 1.
+			}
 			#undef _webcl_i
 			#define _webcl_i 2.
 			#undef _webcl_I
 			#define _webcl_I 2
+			_webcl_index += 1.;
+			{
 				${code}
-			_webcl_index += 1.
+			}
 			#undef _webcl_i
 			#define _webcl_i 3.
 			#undef _webcl_I
 			#define _webcl_I 3
+			_webcl_index += 1.;
+			{
 				${code}
+			}
 				
 		}
 		`;
