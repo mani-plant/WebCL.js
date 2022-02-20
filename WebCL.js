@@ -133,30 +133,31 @@ export function GPU(){
 		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
 		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-		${op.map((x,i) => `#define commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
+		${inp.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`)}
+		${op.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
 		void main(void){
+			float _webcl_index = floor(_webcl_getIndex());
 			#define _webcl_i 0.
 			#define _webcl_I 0
-				commit0(_webcl_texIndex(0,_webcl_getIndex()));
-				commit1(_webcl_texIndex(0,_webcl_readI(0,_webcl_getIndex()));
+				${code}
+			_webcl_index += 1.
 			#undef _webcl_i
 			#define _webcl_i 1.
 			#undef _webcl_I
 			#define _webcl_I 1
-				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
-				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+				${code}
+			_webcl_index += 1.
 			#undef _webcl_i
 			#define _webcl_i 2.
 			#undef _webcl_I
 			#define _webcl_I 2
-				commit0(_webcl_texIndex(0,_webcl_getIndex()));
-				commit1(_webcl_texIndex(0,_webcl_readI(0,_webcl_getIndex()));
+				${code}
+			_webcl_index += 1.
 			#undef _webcl_i
 			#define _webcl_i 3.
 			#undef _webcl_I
 			#define _webcl_I 3
-				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
-				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+				${code}
 				
 		}
 		`;
@@ -170,7 +171,7 @@ export function GPU(){
 		);
 		gl.compileShader(fragmentShader);
 		if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-			var LOC = (fragmentShaderCode + code).split('\n');
+			var LOC = (fragmentShaderCode).split('\n');
 			var dbgMsg = "ERROR: Could not build shader (fatal).\n\n------------------ KERNEL CODE DUMP ------------------\n"
 			for (var nl = 0; nl < LOC.length; nl++)
 				dbgMsg += (1 + nl) + "> " + LOC[nl] + "\n";
