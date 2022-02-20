@@ -21,6 +21,7 @@ function initGL(canvas){
 }
 
 export function GPU(){
+	let internalBuffers = new Map();
 	let gl = initGL(document.createElement('canvas'));
 
 	function getFrameBufferStatusMsg(frameBufferStatus){
@@ -84,12 +85,11 @@ export function GPU(){
 		if(!(size > 0)){
 			throw new Error("Buffer size must be > 0");
 		}
-		let texSize = Math.ceil(Math.sqrt(size/4));
-		this.data = new Float32Array(texSize*texSize*4);
-		this.texSize = texSize;
+		this.texSize = Math.ceil(Math.sqrt(size/4));
+		this.data = new Float32Array(this.texSize*this.texSize*4);
 		this.texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
-		if (texSize > maxTextureSize){
+		if (this.texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
 		}
 		if(arr){
@@ -102,18 +102,22 @@ export function GPU(){
 		}
 		this.alloc = function(){
 			if(this.texture == null){
-				this.texture = createTexture(this.data, texSize);
+				this.texture = createTexture(this.data, this.texSize);
 			}
 			return this.texture;
 		}
-		this.delete = function(){
+		this.free = function(){
 			if(this.texture != null){
 				gl.deleteTexture(this.texture);
 			}
 			this.texture = null;
 		}
 	}
-	function Program(inp, op, code){
+	function Program(inpBuffers, opBuffers, code){
+		let inp = inpBuffers.map(x => internalBuffers.get(x));
+		let op = opBuffers.map(x => internalBuffers.get(x));
+		console.log(inpBuffers, inp);
+		console.log(opBuffers, op);
 		if(inp.length > maxTextureUnits){
 			throw new Error("max input buffers supported = ", maxTextureUnits);
 		}
@@ -206,6 +210,7 @@ export function GPU(){
 			for(let i=0;i<op.length;i++){
 				op[i].alloc();
 				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, op[i].texture, 0);
+				console.log(op[i]);
 				colAt.push(gl.COLOR_ATTACHMENT0+i);
 			}
 			var frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
@@ -249,8 +254,13 @@ export function GPU(){
 		}
 	}
 
-	this.Buffer = function(size, data){
-		return new Buffer(size, data);
+	this.Buffer = function(size, arr = null){
+		let internalBuffer = new Buffer(size, arr);
+		this.set = internalBuffer.set;
+		this.alloc = internalBuffer.alloc;
+		this.free = internalBuffer.free;
+		this.data = internalBuffer.data;
+		internalBuffers.set(this, internalBuffer);
 	}
 
 	this.Program = function(inp, op, code){

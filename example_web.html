@@ -9,11 +9,11 @@
 	var myGPU = new GPU();
 	var sampleSize = 23;
 	var chnl = 1;
-	var testData = myGPU.Buffer(sampleSize);
-	var testData2 = myGPU.Buffer(sampleSize);
-	var testData3 = myGPU.Buffer(sampleSize);
-	var testInp2 = myGPU.Buffer(sampleSize);
-	var testInp = myGPU.Buffer(sampleSize);
+	var testData = new myGPU.Buffer(sampleSize);
+	var testData2 = new myGPU.Buffer(sampleSize);
+	var testData3 = new myGPU.Buffer(sampleSize);
+	var testInp2 = new myGPU.Buffer(sampleSize);
+	var testInp = new myGPU.Buffer(sampleSize);
 	
 	for (var i = 0; i < sampleSize*chnl; i += 1) {
 	  testInp.data[i] = i;
@@ -48,6 +48,8 @@
 	myProg2.transfer();
 	console.log(testData2);
 	console.log(testData3);
+	console.log(myProg1);
+	console.log(myProg2);
 	
 	</script>
 </body>
