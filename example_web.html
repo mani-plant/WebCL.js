@@ -23,32 +23,31 @@
 	testInp2.alloc();
 	console.log(testInp, testInp2);
 
-	var myProg1 = myGPU.Program([testInp, testInp2], [testData, testData2],
+	var myProg1 = myGPU.Program([testInp, testInp2], [testData],
 								
 							    `
 									float inp = _webcl_readI(0, _webcl_getIndex());
 									float inp2 = _webcl_readI(1, _webcl_getIndex());
 									_webcl_commit0(inp+inp2);
-									_webcl_commit1(inp*inp2);
 								`
 							);
-	// var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],
+	var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],
 								
-	// 						    `
-	// 								float inp = _webcl_readI(0, _webcl_getIndex());
-	// 								float inp2 = _webcl_readI(1, _webcl_getIndex());
+							    `
+									float inp = _webcl_readI(0, _webcl_getIndex());
+									float inp2 = _webcl_readI(1, _webcl_getIndex());
 								
-	// 								_webcl_commit(0, inp2*inp);
-	// 								_webcl_commit(1, inp2-inp);
-	// 							`
-	// 						);
+									_webcl_commit0(inp2*inp);
+									_webcl_commit1(inp2-inp);
+								`
+							);
 	myProg1.exec();
 	myProg1.transfer();
 	console.log(testData);
-	// myProg2.exec();
-	// myProg2.transfer();
+	myProg2.exec();
+	myProg2.transfer();
 	console.log(testData2);
-	// console.log(testData3);
+	console.log(testData3);
 	
 	</script>
 </body>
