@@ -133,12 +133,12 @@ export function GPU(){
 		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
 		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-
+		${op.map((x,i) => `#define commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
 		void main(void){
 			#define _webcl_i 0.
 			#define _webcl_I 0
-				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
-				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+				commit0(_webcl_texIndex(0,_webcl_getIndex()));
+				commit1(_webcl_texIndex(0,_webcl_readI(0,_webcl_getIndex()));
 			#undef _webcl_i
 			#define _webcl_i 1.
 			#undef _webcl_I
@@ -149,8 +149,8 @@ export function GPU(){
 			#define _webcl_i 2.
 			#undef _webcl_I
 			#define _webcl_I 2
-				_webcl_out0[_webcl_I] = _webcl_texIndex(0,_webcl_getIndex());
-				_webcl_out1[_webcl_I] = _webcl_readI(0,_webcl_getIndex());
+				commit0(_webcl_texIndex(0,_webcl_getIndex()));
+				commit1(_webcl_texIndex(0,_webcl_readI(0,_webcl_getIndex()));
 			#undef _webcl_i
 			#define _webcl_i 3.
 			#undef _webcl_I
