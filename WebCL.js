@@ -113,6 +113,9 @@ export function GPU(){
 		}
 	}
 	function Program(inp, op, code){
+		if(!(op.length > 0)){
+			throw new Error("output length >0 required");
+		}
 		if(inp.length > maxTextureUnits){
 			throw new Error("max input buffers supported = ", maxTextureUnits);
 		}
@@ -123,11 +126,9 @@ export function GPU(){
 		let sizeO = op[0].texSize;
 		let fragmentShaderCode = `#version 300 es
 		precision highp float;
-		float _webcl_sizeI[${inp.length}] = float[](${inp.map(x => x.texSize).join('.,')}.);
+		${inp.length ? `float _webcl_sizeI[${inp.length}] = float[](${inp.map(x => x.texSize+'.').join(',')});uniform sampler2D _webcl_uTexture[${inp.length}];` : ''}
 		float _webcl_sizeO = ${sizeO}.;
-		uniform sampler2D _webcl_uTexture[${inp.length}];
 		in vec2 _webcl_pos;
-
         #define _webcl_getIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
 		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
