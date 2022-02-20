@@ -84,12 +84,11 @@ export function GPU(){
 		if(!(size > 0)){
 			throw new Error("Buffer size must be > 0");
 		}
-		let texSize = Math.ceil(Math.sqrt(size/4));
-		this.data = new Float32Array(texSize*texSize*4);
-		this.texSize = texSize;
+		this.texSize = Math.ceil(Math.sqrt(size/4));
+		this.data = new Float32Array(this.texSize*this.texSize*4);
 		this.texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
-		if (texSize > maxTextureSize){
+		if (this.texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
 		}
 		if(arr){
@@ -102,7 +101,7 @@ export function GPU(){
 		}
 		this.alloc = function(){
 			if(this.texture == null){
-				this.texture = createTexture(this.data, texSize);
+				this.texture = createTexture(this.data, this.texSize);
 			}
 			return this.texture;
 		}
