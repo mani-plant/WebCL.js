@@ -22,20 +22,35 @@
 	testInp.alloc();
 	testInp2.alloc();
 	console.log(testInp, testInp2);
-
+	// function prog1Shader(_webcl_index, _webcl_inp){
+	// 	let inp = _webcl_inp[0][_webcl_index];
+	// 	let inp2 = _webcl_inp[1][_webcl_index];
+	// 	return (inp+inp2);
+	// }
+	// function prog2Shader(_webcl_index, _webcl_inp){
+	// 	let inp = _webcl_inp[0][_webcl_index];
+	// 	let inp2 = _webcl_inp[1][_webcl_index];
+	// 	return [inp*inp2, inp2-inp1];
+	// }
+	// how to transpile this to shader code?
+	// 1. tokenize string value of function
+	// 2. make Abstract Syntax Tree
+	// 3. convert AST to glsl syntax tree
+	// 4. convert new AST to glsl code
+	// will do later if required, current level of abstraction is enough for now
 	var myProg1 = myGPU.Program([testInp, testInp2], [testData],
 								
 							    `
-									float inp = _webcl_readI(0, _webcl_getIndex());
-									float inp2 = _webcl_readI(1, _webcl_getIndex());
+									float inp = _webcl_readI(0, _webcl_index);
+									float inp2 = _webcl_readI(1, _webcl_index);
 									_webcl_commit0(inp+inp2);
 								`
 							);
 	var myProg2 = myGPU.Program([testInp, testData], [testData2, testData3],
 								
 							    `
-									float inp = _webcl_readI(0, _webcl_getIndex());
-									float inp2 = _webcl_readI(1, _webcl_getIndex());
+									float inp = _webcl_readI(0, _webcl_index);
+									float inp2 = _webcl_readI(1, _webcl_index);
 								
 									_webcl_commit0(inp2*inp);
 									_webcl_commit1(inp2-inp);
