@@ -191,16 +191,11 @@ console.log(outputBuffer2);
 	- percision support
 
 - N-d buffer support
-	- readIn calculation based on tex width and height instead of size(assuming square)
-	- Use RGBA channels, not just RED
 	- Support multi dimensional buffers
-		- 1 x array length sized textures for 1D buffers 
-			- extend support for N-d buffers
-		- width x height length sized textures for 2D buffers
-			- extend support for N-d buffers
-			- compare with previous approach
-
-- GPU.js comparision
+		- 1-D > supported
+		- 2-D > not supported
+		- 3-D > not supported
+		- N-D > not supported
 
 - Transpile JS TO Shaders
 
