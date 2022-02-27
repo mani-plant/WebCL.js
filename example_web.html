@@ -63,7 +63,54 @@
 	myProg2.transfer();
 	console.log(testData2);
 	console.log(testData3);
-	
+	testData.free();
+	testData2.free();
+	testData3.free();
+	testInp.free();
+	testInp2.free();
+
+
+	// ----------------------------------------------------------- //
+
+	let mat1 = [
+		// [
+			1, 2, 3
+		// ]
+		,
+		// [
+			4, 5, 6
+		// ]
+		,
+		// [
+			7, 8, 10
+		// ]
+	];
+	let mat2 = mat1.map(x => x+1);
+	let matBuf1 = myGPU.Buffer(9, mat1);
+	let matBuf2 = myGPU.Buffer(9, mat2);
+	let matSq = myGPU.Buffer(9);
+	matBuf1.alloc();
+	matBuf2.alloc();
+	matSq.alloc();
+	let debugBuf1 = myGPU.Buffer(9);
+	let debugBuf2 = myGPU.Buffer(9);
+	let matProg = myGPU.Program([matBuf1, matBuf2], [matSq], 
+	`
+	float indX = float(int(_webcl_index)/3);
+	float indY = mod(_webcl_index,3.);
+	float op = 0.;
+	for(float i=0.;i<3.;i++){
+			float indNorm1 = (indX*3.)+i;
+			float indNorm2 = (i*3.)+indY;
+			op += _webcl_readI0(indNorm1) * _webcl_readI1(indNorm2);
+	}
+	_webcl_commit0(op);
+	`
+	);
+	matProg.exec();
+	matProg.transfer();
+	console.log({matSq});
+
 	</script>
 </body>
 </html>

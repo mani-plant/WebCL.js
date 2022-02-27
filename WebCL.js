@@ -91,13 +91,13 @@ export function GPU(){
 		if (this.texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
 		}
-		if(arr){
-			this.set(arr);
-		}
 		this.set = function(arr){
 			for(let i=0;i<Math.min(this.data.length, arr.length);i++){
 				this.data[i] = arr[i];
 			}
+		}
+		if(arr){
+			this.set(arr);
 		}
 		this.alloc = function(){
 			if(this.texture == null){
@@ -105,7 +105,7 @@ export function GPU(){
 			}
 			return this.texture;
 		}
-		this.delete = function(){
+		this.free = function(){
 			if(this.texture != null){
 				gl.deleteTexture(this.texture);
 			}
@@ -133,7 +133,7 @@ export function GPU(){
 		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
 		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-		${inp.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`)}
+		${inp.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`).join('\n')}
 		${op.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
 		void main(void){
 			#define _webcl_i 0.
