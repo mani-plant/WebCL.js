@@ -100,9 +100,9 @@
 	float indY = mod(_webcl_index,3.);
 	float op = 0.;
 	for(float i=0.;i<3.;i++){
-			float indNorm1 = (indX*3.)+i;
-			float indNorm2 = (i*3.)+indY;
-			op += _webcl_readI0(indNorm1) * _webcl_readI1(indNorm2);
+		float indNorm1 = (indX*3.)+i;
+		float indNorm2 = (i*3.)+indY;
+		op += _webcl_readI0(indNorm1) * _webcl_readI1(indNorm2);
 	}
 	_webcl_commit0(op);
 	`
