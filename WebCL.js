@@ -20,6 +20,10 @@ function initGL(canvas){
 	return gl;
 }
 
+function getTexSize(size){
+	return Math.ceil(Math.sqrt(size/4));
+}
+
 export function GPU(){
 	let gl = initGL(document.createElement('canvas'));
 
@@ -69,22 +73,26 @@ export function GPU(){
 			"--- CODE DUMP ---\n" + vertexShaderCode + "\n\n" +
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
-	function createTexture(data, size) {
-		let texture = gl.createTexture();
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, data);
-		gl.bindTexture(gl.TEXTURE_2D, null);
-		return texture;
-	}
 	function Buffer(size, arr = null){
+		function createTexture(data, size) {
+			let texture = gl.createTexture();
+			return texture;
+		}
+		function setTexture(texture, data, size) {
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, data);
+			gl.bindTexture(gl.TEXTURE_2D, null);
+			return texture;
+		}
 		if(!(size > 0)){
 			throw new Error("Buffer size must be > 0");
 		}
-		this.texSize = Math.ceil(Math.sqrt(size/4));
+		this.size = size;
+		this.texSize = getTexSize(size);
 		this.data = new Float32Array(this.texSize*this.texSize*4);
 		this.texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
@@ -103,6 +111,7 @@ export function GPU(){
 			if(this.texture == null){
 				this.texture = createTexture(this.data, this.texSize);
 			}
+			setTexture(this.texture, this.data, this.texSize);
 			return this.texture;
 		}
 		this.free = function(){
@@ -112,29 +121,31 @@ export function GPU(){
 			this.texture = null;
 		}
 	}
-	function Program(inp, op, code){
-		if(!(op.length > 0)){
+	function Program(inpSize, opSize, code){
+		if(!(opSize.length > 0)){
 			throw new Error("output length >0 required");
 		}
-		if(inp.length > maxTextureUnits){
+		if(inpSize.length > maxTextureUnits){
 			throw new Error("max input buffers supported = ", maxTextureUnits);
 		}
-		if(op.length > maxColorUnits){
+		if(opSize.length > maxColorUnits){
 			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
 
-		let sizeO = op[0].texSize;
+		let sizeO = getTexSize(opSize[0]);
 		let fragmentShaderCode = `#version 300 es
 		precision highp float;
-		${inp.length ? `float _webcl_sizeI[${inp.length}] = float[](${inp.map(x => x.texSize+'.').join(',')});uniform sampler2D _webcl_uTexture[${inp.length}];` : ''}
+		float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);
+		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
+		${inpSize.length ? `float _webcl_sizeI[${inpSize.length}] = float[](${inpSize.map(x => getTexSize(x)+'.').join(',')});uniform sampler2D _webcl_uTexture[${inpSize.length}];` : ''}
 		float _webcl_sizeO = ${sizeO}.;
 		in vec2 _webcl_pos;
         #define _webcl_getIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
-		${op.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
+		${opSize.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
 		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-		${inp.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`).join('\n')}
-		${op.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
+		${inpSize.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`).join('\n')}
+		${opSize.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
 		void main(void){
 			#define _webcl_i 0.
 			#define _webcl_I 0
@@ -189,7 +200,13 @@ export function GPU(){
 		let program = gl.createProgram();
 		gl.attachShader(program, vertexShader);
 		gl.attachShader(program, fragmentShader);
-		this.exec = function(){
+
+
+		this.new = function(newInpSize, newOpSize){
+			return new Program(newInpSize, newOpSize, code);
+		}
+
+		this.exec = function(inp, op, transferOutput = false, transferIndex = null){
 			gl.linkProgram(program);
 			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
@@ -231,20 +248,20 @@ export function GPU(){
 			}
 			
 			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-		}
-		this.transfer = function(i = null){
-			if(i === null){
-				for(let i=0;i<op.length;i++){
-					gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
-					// assuming a framebuffer is bound with the texture to read attached
-					// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
-					// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
-					// console.log(gl, format, type);
-					gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
+			if(transferOutput){
+				if(transferIndex === null){
+					for(let i=0;i<op.length;i++){
+						gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
+						// assuming a framebuffer is bound with the texture to read attached
+						// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
+						// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+						// console.log(gl, format, type);
+						gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
+					}
+				}else{
+					gl.readBuffer(gl.COLOR_ATTACHMENT0+transferIndex);
+					gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[transferIndex].data);
 				}
-			}else{
-				gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
-				gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
 			}
 		}
 	}
