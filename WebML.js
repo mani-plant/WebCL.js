@@ -68,8 +68,9 @@ const activations = {
 };
 
 class Connection {
-  constructor(innovation, inpNode, weight, enabled) {
+  constructor(innovation, inpNode, opNode, weight, enabled) {
     this.inpNode = inpNode;
+    this.opNode = opNode;
     this.weight = weight;
     this.innovation = innovation;
     this.enabled = enabled;
@@ -234,60 +235,3 @@ class Population {
     this.graphs = new Array(size).fill(0).map((x) => new Graph(adjMatrix));
   }
 }
-
-let x = new Graph([
-  [0, 0, 0, 0],
-  [1, 0, 0, 0],
-  [1, 0, 0, 0],
-  [1, 1, 1, 0],
-]);
-console.log(x.depthMap, x.maxDepth);
-x.logActivations();
-x.activate([1]);
-x.logActivations();
-x.activate([1]);
-x.logActivations();
-x.activate([2]);
-x.logActivations();
-x.activate([1]);
-x.logActivations();
-x.activate([1]);
-x.logActivations();
-x.activate([1]);
-x.logActivations();
-console.log("-");
-x.staticActivate([1]);
-x.logActivations();
-x.staticActivate([1]);
-x.logActivations();
-x.staticActivate([2]);
-x.logActivations();
-x.staticActivate([1]);
-x.logActivations();
-x.staticActivate([1]);
-x.logActivations();
-x.staticActivate([1]);
-x.logActivations();
-// console.log(x);
-
-// let y = new Graph([
-//   [0, 0],
-//   [1, 1],
-// ]);
-// console.log(y);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// y.activate([1]);
-// y.logActivations();
-// console.log(y);
-
-// // let p = new Population(2, 2, 3);
