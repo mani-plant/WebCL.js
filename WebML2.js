@@ -471,21 +471,21 @@ function Population(populationSize, inpDim, opDim) {
   function cross(individual1, individual2) {
     // console.log("cross");
     let m1 = individual1.clone()
-    let m2 = individual2.clone();
-    for (let i = 0; i < m1.connections.length && i < m2.connections.length; i++) {
+    // let m2 = individual2.clone();
+    for (let i = 0; i < m1.connections.length && i < individual2.connections.length; i++) {
       let c1 = m1.connections[i];
-      let c2 = m2.connections[i];
+      let c2 = individual2.connections[i];
       if (c1.innovation === c2.innovation) {
         if (c1.inp !== c2.inp && c1.op !== c2.op) {
           throw new Error("Invalid innvoation number found");
         }
         if (c1.status === ConnectionStatus.enabled && c2.status === ConnectionStatus.enabled) {
           c1.weight = (Math.random() * 2 - 1 > 0) ? c1.weight : c2.weight;
-          c2.weight = (Math.random() * 2 - 1 > 0) ? c2.weight : c1.weight;
+          // c2.weight = (Math.random() * 2 - 1 > 0) ? c2.weight : c1.weight;
         }
       }
     }
-    return [mutation(m1)];
+    return [m1];
   }
   function nextGen(parents, size) {
     let mutationOnlyOffspringCount = Math.round(size * mutation_only_offSprings / 100);
@@ -500,7 +500,17 @@ function Population(populationSize, inpDim, opDim) {
       newPopulation.push(mutation(parents[UniformRandomInt(0, parents.length)]));
     }
     for (let i = 0; i < offspringWithCrossoverCount; i += 2) {
-      newPopulation.push(...cross(parents[UniformRandomInt(0, parents.length)], parents[UniformRandomInt(0, parents.length)]));
+      let i1 = UniformRandomInt(0, parents.length);
+      let i2 = UniformRandomInt(0, parents.length);
+      if(i1 === i2){
+        i2 = UniformRandomInt(0, parents.length);
+      }
+      if(i2 < i1){
+        let tmp = i1;
+        i1 = i2;
+        i2 = tmp;
+      }
+      newPopulation.push(...cross(parents[i1], parents[i2]));
     }
     // console.log("nextGen", population, newPopulation)
     return newPopulation;
