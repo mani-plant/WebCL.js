@@ -13,8 +13,21 @@ function Activation(fx, dx) {
   this.fx = fx;
   this.dx = dx;
 }
+function randomIntWeighted(p) {
+  let x = Math.random();
+  let oddsSum = p[0] || 0;
+  let i = 0;
+  while (oddsSum < x) {
+    oddsSum += p[i];
+    i++;
+    if (i >= p.length) {
+      return 0;
+    }
+  }
+  return i;
+}
 const Activations = {
-  sigmoid: new Activation((x) => (1 / (1 + Math.exp(-4.9*x)))),
+  sigmoid: new Activation((x) => (1 / (1 + Math.exp(-4.9 * x)))),
   relu: new Activation((x) => (x > 0 && x) || 0),
   leaking_relu: new Activation((x) => (x > 0 && x) || 0.1 * x),
   identity: new Activation((x) => x),
@@ -358,7 +371,7 @@ function Population(populationSize, inpDim, opDim) {
   let c1 = 1;
   let c2 = 1;
   let c3 = 0.4;
-  let specie_threshold = 3;
+  let specie_threshold = 0.6;
   function distance(individual1, individual2) {
     /*
       of the number of excess E and disjoint D genes, as well as the , including disabled genes:
@@ -408,7 +421,7 @@ function Population(populationSize, inpDim, opDim) {
     if (j < con2.length) {
       excess = con2.length - j;
     }
-    let N = Math.pow(len, 1/4);
+    let N = len;
     return ((c1 * excess / N) + (c2 * disjoint / N) + ((c3 * matchingSum) / (matching || 1)));
   }
   function evaluateIndividual(individual, inps, ops) {
@@ -436,6 +449,7 @@ function Population(populationSize, inpDim, opDim) {
   let weight_mutation_rate = 8;
   let weight_zero_rate = 1;
   let weight_pertubation_rate = 71;
+  let elitism_threshold = 1;
   function mutation(individual) {
     // console.log("mutation");
     let r = Math.random() * 100;
@@ -449,12 +463,12 @@ function Population(populationSize, inpDim, opDim) {
       // console.log("new connection");
       let inp = UniformRandomInt(0, clone.nodes.length);
       let op = UniformRandomInt(0, clone.nodes.length);
-      addConnection(clone, inp, op, 1, ConnectionStatus.enabled);
+      addConnection(clone, inp, op, (2 * Math.random()) - 1, ConnectionStatus.enabled);
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate) {
       // console.log("new weight");
-      clone.connections[UniformRandomInt(0, clone.connections.length)].weight = (5 * Math.random()) - 2.5;
+      clone.connections[UniformRandomInt(0, clone.connections.length)].weight = (2 * Math.random()) - 1;
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate + weight_zero_rate) {
@@ -463,7 +477,7 @@ function Population(populationSize, inpDim, opDim) {
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate + weight_zero_rate + weight_pertubation_rate) {
-      clone.connections[UniformRandomInt(0, clone.connections.length)].weight += (Math.random() - 0.5);
+      clone.connections[UniformRandomInt(0, clone.connections.length)].weight += (Math.random()*0.2 - 0.1);
       return clone;
     }
     return clone;
@@ -485,22 +499,25 @@ function Population(populationSize, inpDim, opDim) {
         }
       }
     }
-    return [mutation(m1)];
+    return [m1];
   }
-  function nextGen(parents, size) {
+  function nextGen(parents, size, odds) {
+    let oddsSum = 0;
+    odds.forEach(x => oddsSum += x);
+    let p = odds.map(x => x/oddsSum);
     let mutationOnlyOffspringCount = Math.round(size * mutation_only_offSprings / 100);
     let offspringWithCrossoverCount = size - mutationOnlyOffspringCount;
 
     let newPopulation = [];
-    if (size > 5) {
+    if (size > elitism_threshold) {
       newPopulation.push(parents[0].clone());
       offspringWithCrossoverCount--;
     }
     for (let i = 0; i < mutationOnlyOffspringCount; i++) {
-      newPopulation.push(mutation(parents[UniformRandomInt(0, parents.length)]));
+      newPopulation.push(mutation(parents[randomIntWeighted(p)]));
     }
-    for (let i = 0; i < offspringWithCrossoverCount; i += 2) {
-      newPopulation.push(...cross(parents[UniformRandomInt(0, parents.length)], parents[UniformRandomInt(0, parents.length)]));
+    for (let i = 0; i < offspringWithCrossoverCount; i++) {
+      newPopulation.push(...cross(parents[randomIntWeighted(p)], parents[randomIntWeighted(p)]));
     }
     // console.log("nextGen", population, newPopulation)
     return newPopulation;
@@ -513,10 +530,10 @@ function Population(populationSize, inpDim, opDim) {
     for (let i in scores) {
       let s = scores[i];
       sSum += s;
-      if(sMax < s){
+      if (sMax < s) {
         sMax = s;
         si = population[i];
-      } 
+      }
     }
     population = population.sort(function (a, b) {
       return (b.score - a.score);
@@ -555,8 +572,8 @@ function Population(populationSize, inpDim, opDim) {
     let newPopulation = [];
     console.log(speciesCount);
     for (let i in species) {
-      let parents = species[i].slice(0, Math.max(Math.floor(speciesCount[i]*0.2), 1)).map(x => population[x]);
-      newPopulation.push(...nextGen(parents, speciesCount[i]));
+      let parents = species[i].slice(0, Math.max(Math.floor(speciesCount[i] * 0.20), 1)).map(x => population[x]);
+      newPopulation.push(...nextGen(parents, speciesCount[i], parents.map(x => x.score)));
     }
     // console.log('b', population, newPopulation);
     generation.next();
@@ -611,8 +628,8 @@ function generateData(size, fn) {
   let inp = new Array(size);
   let op = new Array(size);
   for (let i = 0; i < size; i++) {
-    let x = (Math.random() * 20) - 10;
-    let y = (Math.random() * 20) - 10;
+    let x = (Math.random() * 10) - 5;
+    let y = (Math.random() * 10) - 5;
     inp[i] = [x, y, 1];
     op[i] = fn(x, y);
   }
@@ -622,7 +639,7 @@ function generateData(size, fn) {
 let x = new Population(1000, 3, 1);
 
 function step() {
-  let data = generateData(100, function (x, y) { return [(x*y > 0 ? 1 : 0)] });
+  let data = generateData(100, function (x, y) { return [(x * y > 0 ? 1 : 0)] });
   let score = x.evolve(...data);
   // x.log();
   // console.log(score, data);
