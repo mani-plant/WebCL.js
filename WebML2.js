@@ -35,13 +35,13 @@ const Activations = {
   arctan: new Activation((x) => Math.atan(x)),
   tanh: new Activation((x) => Math.tanh(x)),
   fiftyfifty: new Activation((x) => {
-    return x > 0 ? 0 : 1;
+    return x > 0.5 ? 0 : 1;
   })
 };
 const defaultHiddenActivation = Activations.sigmoid;
 const defaultActivation = Activations.sigmoid;
 const defaultInputActivation = Activations.identity;
-const defaultOutputActivation = Activations.fiftyfifty;
+const defaultOutputActivation = Activations.sigmoid;
 const NodeTypes = {
   input: 0,
   hidden: 1,
@@ -325,11 +325,13 @@ function Population(populationSize, inpDim, opDim) {
   }
   function evalError(op, t) {
     let err = 0;
+    let err2 = 0;
     for (let i in t) {
       let e = (t[i] - op[i]);
+      err2 += Math.abs(Activations.fiftyfifty.fx(t[i]) - Activations.fiftyfifty.fx(op[i]));
       err += e * e;
     }
-    return err;
+    return [err, err2];
   }
   function newIndividual() {
     let individual = new NeuronGraph();
@@ -426,11 +428,16 @@ function Population(populationSize, inpDim, opDim) {
   }
   function evaluateIndividual(individual, inps, ops) {
     let score = 0;
+    let wrong = 0;
     for (let i = 0; i < inps.length; i++) {
-      score += evalError(individual.activate(inps[i]), ops[i]);
+      let e = evalError(individual.activate(inps[i]), ops[i])
+      score += e[0];
+      wrong += e[1];
     }
-    score = (inps.length - score) / inps.length;
+    score = 1/score;
+    wrong = 100*wrong / inps.length;
     individual.score = score;
+    individual.wrong = wrong;
     return score;
   }
   for (let i = 0; i < populationSize; i++) {
@@ -504,7 +511,7 @@ function Population(populationSize, inpDim, opDim) {
   function nextGen(parents, size, odds) {
     let oddsSum = 0;
     odds.forEach(x => oddsSum += x);
-    let p = odds.map(x => x/oddsSum);
+    let p = odds.map(x => x / oddsSum);
     let mutationOnlyOffspringCount = Math.round(size * mutation_only_offSprings / 100);
     let offspringWithCrossoverCount = size - mutationOnlyOffspringCount;
 
@@ -581,7 +588,7 @@ function Population(populationSize, inpDim, opDim) {
       population[i] = newPopulation[i % newPopulation.length];
     }
     // console.log('a', population, newPopulation);
-    return [sSum, sMax, si?.nodes?.length, si?.connections?.length];
+    return [sSum, sMax, si?.nodes?.length, si?.connections?.length, si.score, si.wrong];
   }
   this.evolve = evolve;
   this.log = function () {
@@ -636,7 +643,7 @@ function generateData(size, fn) {
   return [inp, op];
 }
 
-let x = new Population(10000, 3, 1);
+let x = new Population(1000, 3, 1);
 
 function step() {
   let data = generateData(100, function (x, y) { return [(x * y > 0 ? 1 : 0)] });
@@ -646,6 +653,6 @@ function step() {
   console.log(score, x.generation.read(), x.getPopulation()[0].nodes.length, x.getPopulation()[0].connections.length);
 }
 
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 10000; i++) {
   step();
 }
