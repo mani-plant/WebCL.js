@@ -22,7 +22,7 @@ const Activations = {
   arctan: new Activation((x) => Math.atan(x)),
   tanh: new Activation((x) => Math.tanh(x)),
   fiftyfifty: new Activation((x) => {
-    return x > 0 ? 0 : 1;
+    return x > 0.5 ? 0 : 1;
   })
 };
 const defaultHiddenActivation = Activations.sigmoid;
@@ -449,7 +449,7 @@ function Population(populationSize, inpDim, opDim) {
       // console.log("new connection");
       let inp = UniformRandomInt(0, clone.nodes.length);
       let op = UniformRandomInt(0, clone.nodes.length);
-      addConnection(clone, inp, op, 1, ConnectionStatus.enabled);
+      addConnection(clone, inp, op, (5 * Math.random()) - 2.5, ConnectionStatus.enabled);
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate) {
