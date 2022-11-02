@@ -447,8 +447,8 @@ function Population(populationSize, inpDim, opDim) {
   let new_node_rate = 3;
   let new_connection_rate = 5;
   let weight_mutation_rate = 8;
-  let weight_zero_rate = 1;
-  let weight_pertubation_rate = 71;
+  let weight_zero_rate = 0;
+  let weight_pertubation_rate = 72;
   let elitism_threshold = 1;
   function mutation(individual) {
     // console.log("mutation");
@@ -463,12 +463,12 @@ function Population(populationSize, inpDim, opDim) {
       // console.log("new connection");
       let inp = UniformRandomInt(0, clone.nodes.length);
       let op = UniformRandomInt(0, clone.nodes.length);
-      addConnection(clone, inp, op, (2 * Math.random()) - 1, ConnectionStatus.enabled);
+      addConnection(clone, inp, op, (5 * Math.random()) - 2.5, ConnectionStatus.enabled);
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate) {
       // console.log("new weight");
-      clone.connections[UniformRandomInt(0, clone.connections.length)].weight = (2 * Math.random()) - 1;
+      clone.connections[UniformRandomInt(0, clone.connections.length)].weight = (5 * Math.random()) - 2.5;
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate + weight_zero_rate) {
@@ -477,7 +477,7 @@ function Population(populationSize, inpDim, opDim) {
       return clone;
     }
     if (r < new_connection_rate + new_node_rate + weight_mutation_rate + weight_zero_rate + weight_pertubation_rate) {
-      clone.connections[UniformRandomInt(0, clone.connections.length)].weight += (Math.random()*0.2 - 0.1);
+      clone.connections[UniformRandomInt(0, clone.connections.length)].weight += (Math.random() - 0.5);
       return clone;
     }
     return clone;
@@ -636,7 +636,7 @@ function generateData(size, fn) {
   return [inp, op];
 }
 
-let x = new Population(1000, 3, 1);
+let x = new Population(10000, 3, 1);
 
 function step() {
   let data = generateData(100, function (x, y) { return [(x * y > 0 ? 1 : 0)] });
