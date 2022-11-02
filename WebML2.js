@@ -109,43 +109,56 @@ function NeuronGraph() {
         stacked[node] = false;
         nodeStack.pop();
         curDepth--;
+        // console.log("on pop (in dfs): ", node, curDepth);
         onPop && onPop(node, curDepth, nodeStack, stacked);
         continue;
       }
       stacked[node] = true;
+      // console.log("skip condition (in dfs): ", node, curDepth);
       if (skipCondition(node, curDepth, nodeStack, stacked)) {
+        // console.log("SKIPPING");
         continue;
       }
+      // console.log("onprocess(dfs)", node, curDepth);
       onProcess && onProcess(node, curDepth, nodeStack, stacked);
       curDepth++;
-      for (let connection of opConnections[node]) {
+      for (let c of opConnections[node]) {
+        let connection = connections[c];
+        // console.log("observing connection: ", connection.inp, connection.op);
         if (connection.status === ConnectionStatus.enabled) {
+          // console.log("Connection status enabled");
           let opNode = connection.op;
           if (stacked[opNode]) {
+            // console.log("op node stacked, triggering on cycle", node, curDepth);
             onCycle && onCycle(node, curDepth, nodeStack, stacked);
             if (returnOnCycle) {
+              // console.log("return on cycle");
               return onDone && onDone(true);
             }
             continue;
           }
+          // console.log("stacked", opNode)
           nodeStack.push(opNode);
         }
       }
     }
+    // console.log("return without cycle");
     return onDone && onDone(false);
   };
   let addConnection = function (innovation, inpNode, opNode, weight, status) {
+    // console.log("BAC", inpNode, opNode, nodesDepth[inpNode], nodesDepth[opNode]);
     let connection = new ConnectionGene(innovation, inpNode, opNode, weight, status);
     let op = connection.op;
     let inp = connection.inp;
     if (!nodes[inp] || !nodes[op]) return false;
     if (nodes[op].type === NodeTypes.input) return false;
+    if (op === inp) return false;
     for (let opc of inpConnections[op]) {
       let con = connections[opc];
       if (con.inp === inp) {
         if (con.status === ConnectionStatus.disabled) {
-          con.status = ConnectionStatus.enabled;
-          return true;
+          // con.status = ConnectionStatus.enabled;
+          return false;
         }
         return false;
       }
@@ -155,7 +168,8 @@ function NeuronGraph() {
     opConnections[inp].push(c);
     if (nodesDepth[inp] >= 0 && nodesDepth[op] <= nodesDepth[inp]) {
       let nodesDepthUpdates = [];
-      return dfs(true, [op], nodesDepth[inp] + 1, function (node, curDepth) {
+      let r = dfs(true, [op], nodesDepth[inp] + 1, function (node, curDepth) {
+        // console.log("skip condition", node, curDepth, nodesDepth[node]);
         return nodesDepth[node] >= curDepth;
       }, function (node, curDepth) {
         curDepth > nodesDepth[node] && (nodesDepthUpdates.push([node, curDepth]));
@@ -168,10 +182,13 @@ function NeuronGraph() {
         }
         // process node depth updates
         for (let operation of nodesDepthUpdates) {
+          // console.log('depth updated', operation, nodesDepth[operation[0]]);
           nodesDepth[operation[0]] = operation[1];
         }
         return c;
-      },);
+      });
+      // console.log("AAC", inpNode, opNode, nodesDepth[inpNode], nodesDepth[opNode]);
+      return r;
     }
     return c;
   }
@@ -415,7 +432,6 @@ function Population(populationSize, inpDim, opDim) {
         matchingSum += Math.abs(c1.weight - c2.weight);
         i++;
         j++;
-        continue;
       }
     }
     let len = Math.max(con1.length, con2.length);
@@ -436,8 +452,8 @@ function Population(populationSize, inpDim, opDim) {
       score += e[0];
       wrong += e[1];
     }
-    score = 1/score;
-    wrong = 100*wrong / inps.length;
+    score = 1 / score;
+    wrong = 100 * wrong / inps.length;
     individual.score = score;
     individual.wrong = wrong;
     return score;
@@ -493,19 +509,28 @@ function Population(populationSize, inpDim, opDim) {
   }
   function cross(individual1, individual2) {
     // console.log("cross");
-    let m1 = individual1.clone()
+    let m1 = mutation(individual1);
     let m2 = individual2.clone();
-    for (let i = 0; i < m1.connections.length && i < m2.connections.length; i++) {
-      let c1 = m1.connections[i];
-      let c2 = m2.connections[i];
-      if (c1.innovation === c2.innovation) {
-        if (c1.inp !== c2.inp && c1.op !== c2.op) {
+    let con1 = m1.connections;
+    let con2 = m2.connections;
+    let i = 0, j = 0;
+    while (i < con1.length && j < con2.length) {
+      let c1 = con1[i];
+      let c2 = con2[j];
+      if (c1.innovation < c2.innovation) {
+        i++;
+      } else if (c1.innovation > c2.innovation) {
+        j++;
+      } else {
+        if (c1.inp !== c2.inp || c1.op !== c2.op) {
           throw new Error("Invalid innvoation number found");
         }
         if (c1.status === ConnectionStatus.enabled && c2.status === ConnectionStatus.enabled) {
           c1.weight = (Math.random() * 2 - 1 > 0) ? c1.weight : c2.weight;
-          c2.weight = (Math.random() * 2 - 1 > 0) ? c2.weight : c1.weight;
+          // c2.weight = (Math.random() * 2 - 1 > 0) ? c2.weight : c1.weight;
         }
+        i++;
+        j++;
       }
     }
     return [m1];
@@ -653,13 +678,28 @@ function step() {
   let score = x.evolve(...data);
   // x.log();
   // console.log(score, data);
-  console.log(score, x.generation.read(), x.getPopulation()[0].nodes.length, x.getPopulation()[0].connections.length);
+  console.log(score[5], x.generation.read(), x.getPopulation()[0].nodes.length, x.getPopulation()[0].connections.length);
   if(score[5] < 1){
     smallest.push([score[2] , score[6]]);
   }
 }
 
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 300; i++) {
   step();
 }
 console.log(smallest);
+
+// let x = new NeuronGraph();
+// // undefined
+// x.addNode(NodeTypes.input, Activations.sigmoid); x.addNode(NodeTypes.hidden, Activations.sigmoid); x.addNode(NodeTypes.output, Activations.sigmoid); x.addNode(NodeTypes.hidden, Activations.sigmoid);
+// // 3
+// console.log(x.addConnection(1, 0, 1, 1, 1));
+// // 0
+// console.log(x.addConnection(1, 1, 2, 1, 1));
+// // 1
+// console.log(x.addConnection(1, 2, 3, 1, 1));
+// // 2
+// console.log(x.addConnection(1, 3, 1, 1, 1));
+// // 3
+// console.log(x.addConnection(1, 3, 0, 1, 1));
+// // false
