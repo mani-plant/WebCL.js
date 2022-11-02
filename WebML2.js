@@ -22,7 +22,7 @@ const Activations = {
   arctan: new Activation((x) => Math.atan(x)),
   tanh: new Activation((x) => Math.tanh(x)),
   fiftyfifty: new Activation((x) => {
-    return x > 0 ? 0 : 1;
+    return x > 0.5 ? 0 : 1;
   })
 };
 const defaultHiddenActivation = Activations.sigmoid;
