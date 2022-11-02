@@ -75,6 +75,7 @@ function ConnectionGene(
   }
 }
 function NeuronGraph() {
+  let self = this;
   let nodes = [];
   let connections = [];
   let inpConnections = [];
@@ -251,6 +252,7 @@ function NeuronGraph() {
         }
       }
     }
+    self.depthMap = depthMap;
     let op = [];
     for (let i of opNodes) {
       op.push(activations[i]);
@@ -453,10 +455,10 @@ function Population(populationSize, inpDim, opDim) {
   let mutation_only_offSprings = 25;
   let new_node_rate = 3;
   let new_connection_rate = 5;
-  let weight_mutation_rate = 8;
-  let weight_zero_rate = 0;
+  let weight_mutation_rate = 4;
+  let weight_zero_rate = 4;
   let weight_pertubation_rate = 72;
-  let elitism_threshold = 1;
+  let elitism_threshold = 5;
   function mutation(individual) {
     // console.log("mutation");
     let r = Math.random() * 100;
@@ -588,7 +590,7 @@ function Population(populationSize, inpDim, opDim) {
       population[i] = newPopulation[i % newPopulation.length];
     }
     // console.log('a', population, newPopulation);
-    return [sSum, sMax, si?.nodes?.length, si?.connections?.length, si.score, si.wrong];
+    return [si.wrong, sMax, si?.nodes?.length, si?.connections?.length, si.score, si.wrong, si];
   }
   this.evolve = evolve;
   this.log = function () {
@@ -644,15 +646,20 @@ function generateData(size, fn) {
 }
 
 let x = new Population(1000, 3, 1);
-
+let smallestSie = Infinity;
+let smallest = [];
 function step() {
   let data = generateData(100, function (x, y) { return [(x * y > 0 ? 1 : 0)] });
   let score = x.evolve(...data);
   // x.log();
   // console.log(score, data);
   console.log(score, x.generation.read(), x.getPopulation()[0].nodes.length, x.getPopulation()[0].connections.length);
+  if(score[5] < 1){
+    smallest.push([score[2] , score[6]]);
+  }
 }
 
-for (let i = 0; i < 10000; i++) {
+for (let i = 0; i < 1000; i++) {
   step();
 }
+console.log(smallest);
