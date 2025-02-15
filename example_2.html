@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark">
 <head>
-    <title>WebCL.js matrix multiplication example</title>
+    <title>WebCL.js shit matrix example</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         :root[data-theme="light"] {
@@ -262,21 +262,21 @@
 		var myGPU = new GPU(canvas);
 
         let initial_state = new Array(64).fill(0).map(() => Math.random() > 0.5 ? 1 : 0);
-        let buf1 = new myGPU.Buffer(64, initial_state);
-		let buf2 = new myGPU.Buffer(64, initial_state);
+        let buf1 = new myGPU.Buffer([64], initial_state);
+		let buf2 = new myGPU.Buffer([64], initial_state);
 		buf1.alloc();
 		buf2.alloc();
 		// matSq.alloc();
-		let matProg = new myGPU.Program([buf1.size], [buf2.size], 
+		let matProg = new myGPU.Program([buf1.shape], [buf2.shape], 
 		`
-		float indX = float(int(_webcl_index/8.));
-		float indY = mod(_webcl_index,8.);
+		float indX = float(int(_webcl_index[0]/8.));
+		float indY = mod(_webcl_index[0],8.);
 
         float inpIndX = mod(indX + 1., 8.);
         float inpIndY = mod(indY + 2., 8.);
         float indInp = (inpIndX*8.) + inpIndY;
-		float op = _webcl_readI0(indInp);
-		_webcl_commit0(op);
+		float op = _webcl_readIn0(indInp);
+		_webcl_commitOut0(op);
 		`
 		);
         let frameCount = 0;

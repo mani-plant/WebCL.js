@@ -113,6 +113,11 @@ _webcl_commitOut1(val); // set outputBuffers[1] = val;
 #### Execute Program
 ```
 myProg.exec([inputBuffers], [outputBuffers]);
+
+function([inputBuffers], [outputBuffers], transferOutput = false, transferIndices = null, previewIndex = 0)
+// transferOutput: if true, outputBuffers will be transferred back to CPU after execution
+// transferIndices: if not null, only the elements of outputBuffers at the indices in transferIndices will be transferred back to CPU
+// previewIndex: if not null, the outputBuffer at previewIndex will be rendered on the canvas
 ```
 
 #### Transfer Output Buffers Back to CPU
