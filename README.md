@@ -2,7 +2,7 @@
 An easy to use, light weight Javascript library for doing general purpose computations on GPU.
 
 ## Hello World!
-A program to square all numbers in input array in parallel.
+A program to pariwise sum elements of two matrices in parallel.
 
 ###### Initialization
 ```
