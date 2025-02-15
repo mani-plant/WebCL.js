@@ -23,6 +23,38 @@ function initGL(canvas){
 function getTexSize(size){
 	return Math.ceil(Math.sqrt(size/4));
 }
+function flattenArray(arr, shape) {
+	if (!Array.isArray(arr)) return [arr];
+	
+	let result = [];
+	if (shape.length === 1) {
+		return arr;
+	}
+	
+	for (let i = 0; i < arr.length; i++) {
+		result = result.concat(flattenArray(arr[i], shape.slice(1)));
+	}
+	return result;
+}
+
+function unflattenArray(flatArr, shape) {
+    // Base case: 1D array
+    if (shape.length === 1) {
+        return Array.from(flatArr.slice(0, shape[0]));
+    }
+    
+    // Recursive case: create sub-arrays
+    const result = [];
+    const subArraySize = shape.slice(1).reduce((a, b) => a * b, 1);
+    
+    for (let i = 0; i < shape[0]; i++) {
+        const start = i * subArraySize;
+        const subArray = flatArr.slice(start, start + subArraySize);
+        result.push(unflattenArray(subArray, shape.slice(1)));
+    }
+    
+    return result;
+}
 
 export function GPU(canvas = null){
 	let gl = initGL(canvas || document.createElement('canvas'));
@@ -80,7 +112,16 @@ export function GPU(canvas = null){
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	}
-	function Buffer(size, arr = null){
+	function Buffer(shape, arr = null){
+		function getSize(shape){
+			let size = 1;
+			for(let i=0;i<shape.length;i++){
+				size *= shape[i];
+			}
+			return size;
+		}
+		size = getSize(shape);
+		this.shape = shape;
 		function createTexture(data, size) {
 			let texture = gl.createTexture();
 			return texture;
@@ -107,8 +148,13 @@ export function GPU(canvas = null){
 			throw new Error("ERROR: Texture size not supported!");
 		}
 		this.set = function(arr){
-			for(let i=0;i<Math.min(this.data.length, arr.length);i++){
-				this.data[i] = arr[i];
+			let flatArr = flattenArray(arr, this.shape);
+			// Verify size matches shape
+			if (flatArr.length !== this.size) {
+				throw new Error(`Array size ${flatArr.length} doesn't match buffer shape ${this.shape} (size ${this.size})`);
+			}
+			for(let i=0;i<Math.min(this.data.length, this.size);i++){
+				this.data[i] = flatArr[i];
 			}
 		}
 		if(arr){
@@ -152,6 +198,9 @@ export function GPU(canvas = null){
 			gl.deleteFramebuffer(fbo);
 			
 			return this.data;
+		}
+		this.getShapedData = function(){
+			return unflattenArray(this.data, this.shape);
 		}
 	}
 	function Program(inpSize, opSize, code){
