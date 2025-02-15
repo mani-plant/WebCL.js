@@ -23,6 +23,122 @@ function initGL(canvas){
 function getTexSize(size){
 	return Math.ceil(Math.sqrt(size/4));
 }
+function flattenArray(arr, shape) {
+	if (!Array.isArray(arr)) return [arr];
+	
+	let result = [];
+	if (shape.length === 1) {
+		return arr;
+	}
+	
+	for (let i = 0; i < arr.length; i++) {
+		result = result.concat(flattenArray(arr[i], shape.slice(1)));
+	}
+	return result;
+}
+function getShapedArraySize(shape){
+	let size = 1;
+	for(let i=0;i<shape.length;i++){
+		size *= shape[i];
+	}
+	return size;
+}
+
+function generateIndexMacro(shape, suffix = '') {
+    // Generate stride calculations
+    let strides = [];
+    let stride = 1;
+    for (let i = shape.length - 1; i >= 0; i--) {
+        strides.unshift(stride);
+        stride *= shape[i];
+    }
+    
+    // Create macro
+    let macro = `#define _webcl_getFlatIndex${suffix}(`;
+    
+    // Add index parameters
+    for (let i = 0; i < shape.length; i++) {
+        macro += `i${i}${i < shape.length-1 ? ',' : ''} `;
+    }
+    macro += ') (';
+    
+    // Add index calculation
+    macro += shape.map((_, i) => 
+        `(i${i}) * ${strides[i]}.`
+    ).join(' + ');
+    
+    macro += ')';
+    return macro;
+}
+function generateShapedIndexMacro(shape, suffix = '') {
+    // Calculate strides for each dimension
+    let strides = [];
+    let stride = 1;
+    // Walk backwards through the shape array to compute strides (e.g., for [a,b,c], strides[0] = b*c, strides[1] = c, strides[2] = 1)
+    for (let i = shape.length - 1; i >= 0; i--) {
+        strides.unshift(stride);
+        stride *= shape[i];
+    }
+    
+    // Begin macro definition.
+    // The resulting macro will have (1 + shape.length) parameters: the flat index and one output per dimension.
+    let macro = `#define _webcl_getShapedIndex${suffix}(flat_index, shaped_index) do { \\\n`;
+	macro +=	`float _rem = (flat_index); \\\n`;
+    
+    // For each dimension, compute the index and update _rem.
+    for (let i = 0; i < shape.length; i++) {
+        if (i < shape.length - 1) {
+            macro += `    shaped_index[${i}] = floor(_rem / (${strides[i]}.)); \\\n`;
+            macro += `    _rem = mod(_rem, (${strides[i]}.)); \\\n`;
+        } else {
+            // For the last dimension, _rem is the result.
+            macro += `    shaped_index[${i}] = _rem; \\\n`;
+        }
+    }
+    macro += `} while(false)\n`;
+    return macro;
+}
+function generateNextShapedIndexMacro(shape, suffix = '') {
+    const dims = shape.length;
+    let macro = `#define _webcl_nextShapedIndex${suffix}(shaped_index) do { \\\n`;
+    
+    // Start with a carry of 1.0, since we want to add one to the index.
+    macro += "    float _carry = 1.0; \\\n";
+    
+    // For each dimension, from the last (least-significant) to the first:
+    for (let d = dims - 1; d >= 0; d--) {
+        macro += "    { \\\n";
+        // Compute a temporary value (the old index plus the current carry)
+        macro += `        float _tmp = shaped_index[${d}] + _carry; \\\n`;
+        // New value is the remainder of _tmp divided by the size in that dimension
+        macro += `        shaped_index[${d}] = mod(_tmp, (${shape[d]}.)); \\\n`;
+        // Carry is the quotient of _tmp divided by shape[d]
+        macro += `        _carry = floor(_tmp / (${shape[d]}.)); \\\n`;
+        macro += "    } \\\n";
+    }
+    
+    macro += "} while(false)";
+    return macro;
+}
+
+function unflattenArray(flatArr, shape) {
+    // Base case: 1D array
+    if (shape.length === 1) {
+        return Array.from(flatArr.slice(0, shape[0]));
+    }
+    
+    // Recursive case: create sub-arrays
+    const result = [];
+    const subArraySize = shape.slice(1).reduce((a, b) => a * b, 1);
+    
+    for (let i = 0; i < shape[0]; i++) {
+        const start = i * subArraySize;
+        const subArray = flatArr.slice(start, start + subArraySize);
+        result.push(unflattenArray(subArray, shape.slice(1)));
+    }
+    
+    return result;
+}
 
 export function GPU(canvas = null){
 	let gl = initGL(canvas || document.createElement('canvas'));
@@ -80,7 +196,9 @@ export function GPU(canvas = null){
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	}
-	function Buffer(size, arr = null){
+	function Buffer(shape, arr = null){
+		let size = getShapedArraySize(shape);
+		this.shape = shape;
 		function createTexture(data, size) {
 			let texture = gl.createTexture();
 			return texture;
@@ -107,8 +225,13 @@ export function GPU(canvas = null){
 			throw new Error("ERROR: Texture size not supported!");
 		}
 		this.set = function(arr){
-			for(let i=0;i<Math.min(this.data.length, arr.length);i++){
-				this.data[i] = arr[i];
+			let flatArr = flattenArray(arr, this.shape);
+			// Verify size matches shape
+			if (flatArr.length !== this.size) {
+				throw new Error(`Array size ${flatArr.length} doesn't match buffer shape ${this.shape} (size ${this.size})`);
+			}
+			for(let i=0;i<Math.min(this.data.length, this.size);i++){
+				this.data[i] = flatArr[i];
 			}
 		}
 		if(arr){
@@ -153,8 +276,13 @@ export function GPU(canvas = null){
 			
 			return this.data;
 		}
+		this.getShapedData = function(){
+			return unflattenArray(this.data, this.shape);
+		}
 	}
-	function Program(inpSize, opSize, code){
+	function Program(inpShapes, opShapes, code, pixel_code=''){
+		let inpSize = inpShapes.map(x => getShapedArraySize(x));
+		let opSize = opShapes.map(x => getShapedArraySize(x));
 		if(!(opSize.length > 0)){
 			throw new Error("output length >0 required");
 		}
@@ -170,19 +298,30 @@ export function GPU(canvas = null){
 		precision highp float;
 		float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);
 		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
-		${inpSize.length ? `float _webcl_sizeI[${inpSize.length}] = float[](${inpSize.map(x => getTexSize(x)+'.').join(',')});uniform sampler2D _webcl_uTexture[${inpSize.length}];` : ''}
+		// const float _webcl_outShape[${opShapes[0].length}] = float[](${opShapes[0].join('.,')}.);
+		${inpSize.length ? `float _webcl_sizeI[${inpSize.length}] = float[](${inpSize.map(x => getTexSize(x)+'.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpSize.length}];` : ''}
 		float _webcl_sizeO = ${sizeO}.;
 		in vec2 _webcl_pos;
-        #define _webcl_getIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
+        #define _webcl_getFlatIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
 		${opSize.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
 		
-		#define _webcl_readI(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
-		${inpSize.map((x,i) => `#define _webcl_readI${i}(i) _webcl_readI(${i},i)`).join('\n')}
-		${opSize.map((x,i) => `#define _webcl_commit${i}(val) _webcl_out${i}[_webcl_I] = val`).join('\n')}
+		#define _webcl_readInFlat(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
+		${inpSize.map((x,i) => `#define _webcl_readInFlat${i}(i) _webcl_readInFlat(${i},i)`).join('\n')}
+		${opSize.map((x,i) => `#define _webcl_commitFlat${i}(val) _webcl_out${i}[_webcl_I] = val * _webcl_mask`).join('\n')}
+		${inpShapes.map((x,i) => generateIndexMacro(x, 'In'+i)).join('\n')}
+		${generateIndexMacro(opShapes[0], 'Out')}
+		${inpShapes.map((x,i) => `#define _webcl_readIn${i}(${x.map((x,i) => 'x'+i).join(',')}) _webcl_readInFlat${i}(_webcl_getFlatIndexIn${i}(${x.map((x,i) => 'x'+i).join(',')}))`).join('\n')}
+		${opShapes.map((x,i) => `#define _webcl_commitOut${i}(val) _webcl_commitFlat${i}(val)`).join('\n')}
+		${generateShapedIndexMacro(opShapes[0], 'Out')}
+		${generateNextShapedIndexMacro(opShapes[0], 'Out')}
 		void main(void){
+			${pixel_code}
 			#define _webcl_i 0.
 			#define _webcl_I 0
-			float _webcl_index = floor(_webcl_getIndex());
+			float _webcl_index[${opShapes[0].length}];
+			float _webcl_flatIndex = floor(_webcl_getFlatIndex());
+			_webcl_getShapedIndexOut(_webcl_flatIndex, _webcl_index);
+			float _webcl_mask = step(_webcl_flatIndex+1., _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -190,7 +329,9 @@ export function GPU(canvas = null){
 			#define _webcl_i 1.
 			#undef _webcl_I
 			#define _webcl_I 1
-			_webcl_index += 1.;
+			_webcl_flatIndex += 1.;
+			_webcl_nextShapedIndexOut(_webcl_index);
+			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -198,7 +339,9 @@ export function GPU(canvas = null){
 			#define _webcl_i 2.
 			#undef _webcl_I
 			#define _webcl_I 2
-			_webcl_index += 1.;
+			_webcl_flatIndex += 1.;
+			_webcl_nextShapedIndexOut(_webcl_index);
+			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -206,7 +349,9 @@ export function GPU(canvas = null){
 			#define _webcl_i 3.
 			#undef _webcl_I
 			#define _webcl_I 3
-			_webcl_index += 1.;
+			_webcl_flatIndex += 1.;
+			_webcl_nextShapedIndexOut(_webcl_index);
+			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -299,14 +444,13 @@ export function GPU(canvas = null){
 				}
 			}
 			if(previewIndex !== null && previewIndex < op.length){
-				console.log("previewing op", previewIndex);
 				gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
 				gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 				gl.readBuffer(gl.COLOR_ATTACHMENT0 + previewIndex);
 
 				// gl.canvas.width = op[previewIndex].texSize;
 				// gl.canvas.height = op[previewIndex].texSize;
-				console.log("canvas", gl.canvas.width, gl.canvas.height);
+				// console.log("canvas", gl.canvas.width, gl.canvas.height);
 				gl.blitFramebuffer(
 					0, 0, op[previewIndex].texSize, op[previewIndex].texSize,  // source
 					0, 0, gl.canvas.width, gl.canvas.height,                    // dest
