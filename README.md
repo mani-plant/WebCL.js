@@ -99,17 +99,6 @@ _webcl_readIn0(float index)
 _webcl_commitOut1(val); // set outputBuffers[1] = val;
 // general form: _webcl_commitOut<N>(val); // set outputBuffers[N] = val;
 ```
-<!-- ###### 4. Channel Support: -->
-```
-+-----------------------------+
-|Channel  | output_data_type  |
-+---------+-------------------+
-|  1      | float             |
-|  2      | vec2              |
-|  3      | vec3              |
-|  4      | vec4              |
-+---------+-------------------+
-```
 #### Execute Program
 ```
 myProg.exec([inputBuffers], [outputBuffers]);
