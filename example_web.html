@@ -8,66 +8,6 @@
 	import {GPU} from './WebCL.js';
 	var myGPU = new GPU();
 	console.log(myGPU);
-	// var sampleSize = 23;
-	// var chnl = 1;
-	// var testData = myGPU.Buffer(sampleSize);
-	// var testData2 = myGPU.Buffer(sampleSize);
-	// var testData3 = myGPU.Buffer(sampleSize);
-	// var testInp2 = myGPU.Buffer(sampleSize);
-	// var testInp = myGPU.Buffer(sampleSize);
-	
-	// for (var i = 0; i < sampleSize*chnl; i += 1) {
-	//   testInp.data[i] = i;
-	//   testInp2.data[i] = i;
-	// }
-	// testInp.alloc();
-	// testInp2.alloc();
-	// // function prog1Shader(_webcl_index, _webcl_inp){
-	// // 	let inp = _webcl_inp[0][_webcl_index];
-	// // 	let inp2 = _webcl_inp[1][_webcl_index];
-	// // 	return (inp+inp2);
-	// // }
-	// // function prog2Shader(_webcl_index, _webcl_inp){
-	// // 	let inp = _webcl_inp[0][_webcl_index];
-	// // 	let inp2 = _webcl_inp[1][_webcl_index];
-	// // 	return [inp*inp2, inp2-inp1];
-	// // }
-	// // how to transpile this to shader code?
-	// // 1. tokenize string value of function
-	// // 2. make Abstract Syntax Tree
-	// // 3. convert AST to glsl syntax tree
-	// // 4. convert new AST to glsl code
-	// // will do later if required, current level of abstraction is enough for now
-	// var myProg1 = myGPU.Program([testInp.size, testInp2.size], [testData.size],
-								
-	// 						    `
-	// 								float inp = _webcl_readI(0, _webcl_index);
-	// 								float inp2 = _webcl_readI(1, _webcl_index);
-	// 								_webcl_commit0(inp+inp2);
-	// 							`
-	// 						);
-	// var myProg2 = myGPU.Program([testInp.size, testData.size], [testData2.size, testData3.size],
-								
-	// 						    `
-	// 								float inp = _webcl_readI(0, _webcl_index);
-	// 								float inp2 = _webcl_readI(1, _webcl_index);
-								
-	// 								_webcl_commit0(inp2*inp);
-	// 								_webcl_commit1(inp2-inp);
-	// 							`
-	// 						);
-	// myProg1.exec([testInp, testInp2], [testData], true);
-	// // myProg1.transfer();
-	// myProg2.exec([testInp, testInp2], [testData2, testData3], true);
-	// // myProg2.transfer();
-	// // testData.free();
-	// // testData2.free();
-	// // testData3.free();
-	// // testInp.free();
-	// // testInp2.free();
-	// console.log(testInp, testInp2, testData, testData2, testData3);
-
-	// ----------------------------------------------------------- //
 
 	let mat1 = [
 		// [
@@ -82,7 +22,11 @@
 			7, 8, 10
 		// ]
 	];
-	let mat2 = mat1.map(x => x+1);
+	let mat2 = [
+		1,0,0,
+		0,1,0,
+		0,0,1
+	];
 	let matBuf1 = new myGPU.Buffer(9, mat1);
 	let matBuf2 = new myGPU.Buffer(9, mat2);
 	let matSq = new myGPU.Buffer(9);
@@ -106,69 +50,6 @@
 	// matProg.transfer();
 	console.log(matBuf1, matBuf2, matSq);
 
-	function gpuMatrix(row, col, gpu, data){
-		let dataBuffer = new gpu.Buffer(row*col);
-		let self = this;
-		this.isDirty = false;
-		function rawIndex(r, c){
-			console.log(typeof r);
-			console.log(r,c,row,col,(r*col)+c);
-			return ((r*col) + c);
-		}
-		function set(updateData, startRow = 0, startCol = 0){
-			self.isDirty = true;
-			for(let i=0;i<updateData.length; i++){
-				for(let j=0;j<updateData.length; j++){
-					let r = rawIndex(startRow + i, startCol + j);
-					dataBuffer.data[r] = updateData[i][j];
-				}
-			}
-			console.log(dataBuffer);
-			dataBuffer.alloc();
-			self.isDirty = false;
-		}
-		function get(){
-			return dataBuffer.data;
-		}
-		if(data){
-			set(data);
-		}
-		this.set = set;
-		this.get = get;
-		this.buffer = dataBuffer;
-		this.cross = function(mat){
-
-		}
-	}
-	let x = new gpuMatrix(3, 3, myGPU, [[1,2,3],[3,4,5],[5,6,7]]);
-	let y = new gpuMatrix(3, 3, myGPU, [[1,2,3],[5,6,7],[9,10,11]]);
-	let z = new gpuMatrix(3, 3, myGPU);
-	let np = matProg.new([9, 9], [9]);
-	np.exec([x.buffer, y.buffer],[z.buffer],true);
-	console.log(x, y, z);
-	//
-	//
-	//
-	{
-		function NeuronGraph(){
-			function Neuron(type, weights, bias){
-				this.type = type;
-				this.weights = weights;
-				this.bias = bias;
-			}
-			function Connection(inp, out, weight, enabled, innovation){
-				this.in = inp;
-				this.out = out;
-				this.weight = weight;
-				this.enabled = enabled;
-				this.innovation = innovation;
-			}
-			let genoType = {
-				nodes: [],
-				connections: []
-			}
-		}
-	}
 	</script>
 </body>
 </html>
