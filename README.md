@@ -10,36 +10,52 @@ var myGPU = new GPU();
 ```
 ###### Allocate Memory in GPU
 ```
-var gpuMem_Inp = myGPU.Buffer(64); //an array of length 64 on gpu
-var gpuMem_Out = myGPU.Buffer(64); //more details on Buffer in docs
+let mat1 = [
+	[[1,1,1],[1,1,1]],
+	[[2,2,2],[2,2,2]],
+	[[3,3,3],[3,3,3]],
+	[[4,4,4],[4,4,4]]
+].map(x=>x.map(y=>y.map(z=>z/10)));
+let mat2 = [
+	[[1,0,0],[0,0,0]],
+	[[0,1,0],[0,0,0]],
+	[[0,0,1],[0,0,0]],
+	[[0,0,0],[1,0,0]],
+].map(x=>x.map(y=>y.map(z=>z/10)));
+let matBuf1 = new myGPU.Buffer([4,2,3], mat1); // GPU memory of shape [4,2,3] with mat1 as data (data is still on CPU) 
+let matBuf2 = new myGPU.Buffer([4,2,3], mat2);
+let matSum = new myGPU.Buffer([4,2,3]); // for output
 
-for (var i = 0; i < 64; i += 1) {
-  gpuMem_Inp.data[i] = i; //setup data on CPU
-}
+matBuf1.alloc(); //allocate memory on GPU - transfers data from CPU to GPU
+matBuf2.alloc(); 
 
-gpuMem_Inp.alloc(); //send data to GPU
 ```
 ###### Create a GPU Program
 ```
-var squareProg = myGPU.Program([gpuMem_Inp], [gpuMem_Out],
-    `void main(void) {
-
-    float inp = readI(0, getIndex()); //read input
-    
-    out0 = inp*inp; //set output
-  }`
+let matProg = new myGPU.Program([matBuf1.shape, matBuf2.shape], [matSum.shape], 
+`
+float op = _webcl_readIn0(_webcl_index[0], _webcl_index[1], _webcl_index[2]) + _webcl_readIn1(_webcl_index[0], _webcl_index[1], _webcl_index[2]);
+_webcl_commitOut0(op);
+`
 );
 ```
 ###### Execute the Program on GPU
 ```
-squareProg.exec();
+matProg.exec([matBuf1, matBuf2], [matSum]);
 ```
 ###### Transfer output back to CPU
 ```
-squareProg.transfer();
-console.log(gpuMem_Out);
+matSum.read();
+console.log(matSum.getShapedData());
 ```
-
+###### Clean up
+```
+matSum.free();
+matBuf1.free();
+matBuf2.free();
+matProg.free();
+myGPU.free();
+```
 ## GPU
 Create a GPU instance to access GPU.
 ```
@@ -51,43 +67,39 @@ A GPU instance can be used to create Buffers which corrosponds to Memory on GPU 
 ## Buffer
 Buffers are memory on GPU, initialize a buffer by putting values in Buffer.data Float32Array, and use Buffer.alloc and Buffer.delete to allocate memory on GPU for Buffer.data and delete it respectively.
 ```
-var buffer1 = myGPU.Buffer(size, [channels, data])
-// size = number of elements in buffer
-// channels = number of channels per element (1,2,3 or 4), default 1
-// data = Float32Array of length size*channels, default null(initialize array of size*channels with zeros)
-
-for (var i = 0; i < buffer1.data.length; i += 1) {
-	  buffer1.data[i] = i;
-}
-//optionally fill buffer with data
+var buffer1 = myGPU.Buffer(shape, shaped_js_array) // shaped_js_array is optional, can be passed as buffer1.set(shaped_js_array) later too
 
 buffer1.alloc();
 //send buffer1.data to GPU
 
-buffer1.delete();
+buffer1.free();
 //free GPU memory occupied during alloc
 ```
 
 ## Program
-Programs are basically fragment shader code in Open GL ES 3. These run on GPU in parallel for each output element.
+Programs are fragment shader code in Open GL ES 3. These run on GPU in parallel for each output element.
 ```
-//myGPU.Program([input Buffers],[in-out Buffers],`shader program string`);
+//myGPU.Program([input buffers shapes],[ouput buffers shapes],`shader program string`);
 ```
 Shader program is executed once for each output.
 #### Shader Program
 The following functions are available in shader program to access input and in-out buffers.
-###### 1. Get current element: 
-```getIndex()```
-getIndex() is used to get current output buffer index.
+###### 1. Get current index: 
+```_webcl_index[dim]```
+```i0 = _webcl_index[0]; // etc```
+_webcl_index[n] is used to get n-th dimension of current output buffer index at which the shader program is executed.
 ###### 2. Read Input:
 ```
-readI(int bufferno, float index)
-//read returns inputBuffer[index] (float if channels=1, vec2 if channels=2 etc)
+_webcl_readIn0(float index)
+// read returns inputBuffers[0][index]
+// general form: _webcl_readIn<N>(float index) reads inputBuffers[N][index]
 ```
 ###### 3. Set Output:
-```out0 = x;
-out1 = y;
+```_webcl_commitOut0(val); // set outputBuffers[0] = val;
+_webcl_commitOut1(val); // set outputBuffers[1] = val;
+// general form: _webcl_commitOut<N>(val); // set outputBuffers[N] = val;
 ```
+<!-- ###### 4. Channel Support: -->
 ```
 +-----------------------------+
 |Channel  | output_data_type  |
@@ -100,106 +112,32 @@ out1 = y;
 ```
 #### Execute Program
 ```
-myProg.exec()
+myProg.exec([inputBuffers], [outputBuffers]);
 ```
 
 #### Transfer Output Buffers Back to CPU
 ```
-myProg.transfer()
+outBuffer.read()
 ```
 ## Open GL ES 3 Functions
-The following functions are available in shader code for reading inputs, output and setting output.
+The following variables, functions and macros are available in shader code for reading inputs, output and setting output.
 ```
-float getIndex() //This thread will write to output_buffer[index]
-float readI(int i, float index)	//Read i-th input_buffer[index]
-// Use these functions for more than 1 channel(max 4-r,g,b,a aka x,y,z,w) input buffers
-float readI(int i, float index)
-float readIR(int i, float index)
-float readIG(int i, float index)
-float readIB(int i, float index)
-float readIA(int i, float index)
-vec2 readIRG(int i, float index)
-vec3 readIRGB(int i, float index)
-vec4 readIRGBA(int i, float index)
+float _webcl_index[D] // current index of output buffer at dimension D
+_webcl_readIn<N>(x1,x2,...,xk) // read input from input buffer N of dimension k
+_webcl_commitOut<N>(val) // set output buffer N's current index to val
 
-//to set output use
-out<i> = some float value
-//where i = 0,1,2 ... number of output buffers
 ```
 Notes:
 1. You can read any index of the input buffers but only current index of the output buffers.
 2. Any buffer can be used with any program any number of times without the need to transfer buffer data back to cpu
 
-## Working with Multiple Buffers: Example Matrix Multiplication and Addition of two 4x4 matrices
-In this example we will make a program that takes two input buffers of 4x4 and sets two output buffers of size 4x4, first output will be matrix product of the inputs and second output will be matrix sum of the inputs.
-```
-var myGPU = new GPU();
-var sampleSize =16;
-var chnl = 1;
-var outputBuffer1 = myGPU.Buffer(sampleSize,chnl);
-var outputBuffer2 = myGPU.Buffer(sampleSize,chnl);
-var inputBuffer1 = myGPU.Buffer(sampleSize,chnl);
-var inputBuffer2 = myGPU.Buffer(sampleSize,chnl);
-
-for (var i = 0; i < sampleSize*chnl; i += 1) {
-	inputBuffer1.data[i] = i;
-	inputBuffer2.data[i] = i;
-}
-inputBuffer1.alloc();
-inputBuffer2.alloc();
-
-var matMulSumProgram = myGPU.Program([inputBuffer1, inputBuffer2], [outputBuffer1, outputBuffer2],
-
-`vec2 get2dIndex(float index, float size){
-	float y = float(int(index)/int(size));
-	float x = index - size*y;
-	return vec2(x,y);
-}
-
-float get1dIndex(vec2 ind, float size){
-	return (ind.y*size + ind.x);
-}
-
-void main(void) {
-	float sop = 0.0;
-	vec2 out_index = get2dIndex(getIndex(), 4.);
-	for(int i=0;i<int(out_index.x);i++){
-		sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
-	}
-	for(int i=int(out_index.x);i<4;i++){
-		sop += readI(0,get1dIndex(vec2(float(i),out_index.y), 4.)) * readI(1,get1dIndex(vec2(out_index.x, float(i)), 4.));
-	}
-	float inp = readI(0, getIndex());
-	float inp2 = readI(1, getIndex());
-	out1 = sop;
-	out0 = inp+inp2;
-}`
-);
-
-matMulSumProgram.exec();
-matMulSumProgram.transfer();
-console.log(outputBuffer1);
-console.log(outputBuffer2);
-```
-
 ###### TODOs
 ```
-- support for buffers datatype and percision
+- support for typed buffers and custom percision
 	- float highp (current)
 	- int highp
 	- unsigned
-	- percision support
-
-- N-d buffer support
-	- Support multi dimensional buffers
-		- 1-D > supported
-		- 2-D > not supported
-		- 3-D > not supported
-		- N-D > not supported
-
+	- lower percision support
 - Transpile JS TO Shaders
 
-- Maths library
-
-- ML library
 ```

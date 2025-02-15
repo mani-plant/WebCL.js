@@ -261,40 +261,50 @@
 		var canvas = document.getElementById('canvas');
 		var myGPU = new GPU(canvas);
 
-		let mat1 = [
-			[[1,1,1],[1,1,1]],
-			[[2,2,2],[2,2,2]],
-			[[3,3,3],[3,3,3]],
-			[[4,4,4],[4,4,4]]
-		].map(x=>x.map(y=>y.map(z=>z/10)));
-		let mat2 = [
-			[[1,0,0],[0,0,0]],
-			[[0,1,0],[0,0,0]],
-			[[0,0,1],[0,0,0]],
-			[[0,0,0],[1,0,0]],
-		].map(x=>x.map(y=>y.map(z=>z/10)));
-		let matBuf1 = new myGPU.Buffer([4,2,3], mat1);
-		let matBuf2 = new myGPU.Buffer([4,2,3], mat2);
-		let matSum = new myGPU.Buffer([4,2,3]);
-		matBuf1.alloc();
-		matBuf2.alloc();
+        let initial_state = new Array(64).fill(0).map(() => Math.random() > 0.5 ? 1 : 0);
+        let buf1 = new myGPU.Buffer(64, initial_state);
+		let buf2 = new myGPU.Buffer(64, initial_state);
+		buf1.alloc();
+		buf2.alloc();
 		// matSq.alloc();
-		let matProg = new myGPU.Program([matBuf1.shape, matBuf2.shape], [matSum.shape], 
+		let matProg = new myGPU.Program([buf1.size], [buf2.size], 
 		`
-		float op = _webcl_readIn0(_webcl_index[0], _webcl_index[1], _webcl_index[2]) + _webcl_readIn1(_webcl_index[0], _webcl_index[1], _webcl_index[2]);
-		_webcl_commitOut0(op);
+		float indX = float(int(_webcl_index/8.));
+		float indY = mod(_webcl_index,8.);
+
+        float inpIndX = mod(indX + 1., 8.);
+        float inpIndY = mod(indY + 2., 8.);
+        float indInp = (inpIndX*8.) + inpIndY;
+		float op = _webcl_readI0(indInp);
+		_webcl_commit0(op);
 		`
 		);
-		matProg.exec([matBuf1, matBuf2], [matSum]);
+        let frameCount = 0;
+        function frame(){
+            for(let i=0;i<1;i++){
+                matProg.exec([buf1], [buf2]);
+                matProg.exec([buf2], [buf1]);
+            }
+            buf1.read();
+            buf2.read();
+            // console.log(buf1.data);
+            // console.log(buf2.data);
+            frameCount++;
+            console.log(frameCount);
+            
+            if(frameCount > 10){
+                console.log('done');
+                return;
+            }
+            setTimeout(() => requestAnimationFrame(frame), 1000);
+            // requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
 
-		console.log(matBuf1, matBuf2, matSum);
-		matSum.read();
-		console.log(matSum.getShapedData());
-		matSum.free();
-		matBuf1.free();
-		matBuf2.free();
-		matProg.free();
-		myGPU.free();
+
+		// console.log(matBuf1, matBuf2, matSq);
+		// matSq.read();
+		// console.log(matSq.data);
 	</script>
 		
 </body>
