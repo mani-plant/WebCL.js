@@ -24,8 +24,8 @@ function getTexSize(size){
 	return Math.ceil(Math.sqrt(size/4));
 }
 
-export function GPU(){
-	let gl = initGL(document.createElement('canvas'));
+export function GPU(canvas = null){
+	let gl = initGL(canvas || document.createElement('canvas'));
 
 	function getFrameBufferStatusMsg(frameBufferStatus){
 		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
@@ -65,14 +65,21 @@ export function GPU(){
 	"  gl_Position = vec4(_webcl_position.xy, 0.0, 1.0);\n" +
 	"}";
 	let vertexShader = gl.createShader(gl.VERTEX_SHADER);
+	this.free = function() {
+		gl.deleteShader(vertexShader);
+		gl.deleteBuffer(positionBuffer);
+		gl.deleteBuffer(textureBuffer);
+		gl.deleteBuffer(indexBuffer);
+	}
 	gl.shaderSource(vertexShader, vertexShaderCode);
 	gl.compileShader(vertexShader);
-	if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
+	if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)){
 		throw new Error(
 			"\nError: Vertex shader build failed\n" + "\n" +
 			"--- CODE DUMP ---\n" + vertexShaderCode + "\n\n" +
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
+	}
 	function Buffer(size, arr = null){
 		function createTexture(data, size) {
 			let texture = gl.createTexture();
@@ -119,6 +126,32 @@ export function GPU(){
 				gl.deleteTexture(this.texture);
 			}
 			this.texture = null;
+		}
+		this.read = function() {
+			if (!this.texture) {
+				throw new Error("Texture not allocated on GPU");
+			}
+			
+			// Create a framebuffer
+			const fbo = gl.createFramebuffer();
+			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+			
+			// Attach the texture
+			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
+			
+			// Check if framebuffer is complete
+			const frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+			if (frameBufferStatus !== gl.FRAMEBUFFER_COMPLETE) {
+				throw new Error('Framebuffer not complete: ' + getFrameBufferStatusMsg(frameBufferStatus));
+			}
+			
+			// Read the pixels
+			gl.readPixels(0, 0, this.texSize, this.texSize, gl.RGBA, gl.FLOAT, this.data);
+			
+			// Cleanup
+			gl.deleteFramebuffer(fbo);
+			
+			return this.data;
 		}
 	}
 	function Program(inpSize, opSize, code){
@@ -182,7 +215,7 @@ export function GPU(){
 		`;
 		console.log(vertexShaderCode);
 		console.log(fragmentShaderCode);
-		var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+		let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 
 		gl.shaderSource(
 			fragmentShader,
@@ -190,9 +223,9 @@ export function GPU(){
 		);
 		gl.compileShader(fragmentShader);
 		if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-			var LOC = (fragmentShaderCode).split('\n');
-			var dbgMsg = "ERROR: Could not build shader (fatal).\n\n------------------ KERNEL CODE DUMP ------------------\n"
-			for (var nl = 0; nl < LOC.length; nl++)
+			let LOC = (fragmentShaderCode).split('\n');
+			let dbgMsg = "ERROR: Could not build shader (fatal).\n\n------------------ KERNEL CODE DUMP ------------------\n"
+			for (let nl = 0; nl < LOC.length; nl++)
 				dbgMsg += (1 + nl) + "> " + LOC[nl] + "\n";
 			dbgMsg += "\n--------------------- ERROR  LOG ---------------------\n" + gl.getShaderInfoLog(fragmentShader)
 			throw new Error(dbgMsg);
@@ -205,27 +238,27 @@ export function GPU(){
 		this.new = function(newInpSize, newOpSize){
 			return new Program(newInpSize, newOpSize, code);
 		}
-
-		this.exec = function(inp, op, transferOutput = false, transferIndex = null){
+		let fbo = null;
+		this.exec = function(inp, op, transferOutput = false, transferIndices = null, previewIndex = 0){
 			gl.linkProgram(program);
 			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
-			var v_texture = [];
+			let v_texture = [];
 			for(let i=0;i<inp.length;i++){
 				v_texture.push(gl.getUniformLocation(program, '_webcl_uTexture['+i+']'));
 			}
-			var aPosition = gl.getAttribLocation(program, '_webcl_position');
-			var aTexture = gl.getAttribLocation(program, '_webcl_texture');
+			let aPosition = gl.getAttribLocation(program, '_webcl_position');
+			let aTexture = gl.getAttribLocation(program, '_webcl_texture');
 			gl.viewport(0, 0, sizeO, sizeO);
-			var fbo = gl.createFramebuffer();
+			fbo = fbo || gl.createFramebuffer();
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-			var colAt = [];
+			let colAt = [];
 			for(let i=0;i<op.length;i++){
 				op[i].alloc();
 				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+i, gl.TEXTURE_2D, op[i].texture, 0);
 				colAt.push(gl.COLOR_ATTACHMENT0+i);
 			}
-			var frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+			let frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 			if (frameBufferStatus !== gl.FRAMEBUFFER_COMPLETE){
 				throw new Error('ERROR: ' + getFrameBufferStatusMsg(frameBufferStatus));
 			}
@@ -249,7 +282,7 @@ export function GPU(){
 			
 			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 			if(transferOutput){
-				if(transferIndex === null){
+				if(transferIndices === null){
 					for(let i=0;i<op.length;i++){
 						gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
 						// assuming a framebuffer is bound with the texture to read attached
@@ -259,11 +292,36 @@ export function GPU(){
 						gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
 					}
 				}else{
-					gl.readBuffer(gl.COLOR_ATTACHMENT0+transferIndex);
-					gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[transferIndex].data);
+					for(let i=0;i<transferIndices.length;i++){
+						gl.readBuffer(gl.COLOR_ATTACHMENT0+transferIndices[i]);
+						gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[transferIndices[i]].data);
+					}
 				}
 			}
+			if(previewIndex !== null && previewIndex < op.length){
+				console.log("previewing op", previewIndex);
+				gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
+				gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+				gl.readBuffer(gl.COLOR_ATTACHMENT0 + previewIndex);
+
+				// gl.canvas.width = op[previewIndex].texSize;
+				// gl.canvas.height = op[previewIndex].texSize;
+				console.log("canvas", gl.canvas.width, gl.canvas.height);
+				gl.blitFramebuffer(
+					0, 0, op[previewIndex].texSize, op[previewIndex].texSize,  // source
+					0, 0, gl.canvas.width, gl.canvas.height,                    // dest
+					gl.COLOR_BUFFER_BIT,
+					gl.NEAREST
+				);
+			}
+			
 		}
+
+		this.free = function() {
+            gl.deleteProgram(program);
+            gl.deleteShader(fragmentShader);
+			gl.deleteFramebuffer(fbo);
+        }
 	}
 
 	this.Buffer = function(size, data){

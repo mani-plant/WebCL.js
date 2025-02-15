@@ -71,7 +71,7 @@
             padding: 10px;
             border-top: 1px solid var(--border-color);
             background: var(--output-bg);
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             transition: background-color 0.3s, border-color 0.3s;
             position: fixed;
@@ -126,7 +126,7 @@
         <i class="fa-solid fa-sun"></i>
         <i class="fa-solid fa-moon"></i>
     </button>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" style="border: 1px solid var(--border-color);" width="300" height="300"></canvas>
     <div id="output-header">
         <span>Console Output</span>
         <button id="toggle-output" aria-label="Toggle console">
@@ -258,7 +258,8 @@
     </script>
 	<script type="module">
 		import {GPU} from './WebCL.js';
-		var myGPU = new GPU();
+		var canvas = document.getElementById('canvas');
+		var myGPU = new GPU(canvas);
 
 		let mat1 = [
 			// [
@@ -297,10 +298,11 @@
 		_webcl_commit0(op);
 		`
 		);
-		matProg.exec([matBuf1, matBuf2], [matSq], true);
-		// matProg.transfer();
-		console.log(matBuf1, matBuf2, matSq);
+		matProg.exec([matBuf1, matBuf2], [matSq]);
 
+		console.log(matBuf1, matBuf2, matSq);
+		matSq.read();
+		console.log(matSq.data);
 	</script>
 		
 </body>
