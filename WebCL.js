@@ -322,7 +322,7 @@ export function GPU(canvas = null){
 			float _webcl_index[${opShapes[0].length}];
 			float _webcl_flatIndex = floor(_webcl_getFlatIndex());
 			_webcl_getShapedIndexOut(_webcl_flatIndex, _webcl_index);
-			float _webcl_mask = step(_webcl_flatIndex+1., _webcl_opSize[0]);
+			float _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -332,7 +332,7 @@ export function GPU(canvas = null){
 			#define _webcl_I 1
 			_webcl_flatIndex += 1.;
 			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
+			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -342,7 +342,7 @@ export function GPU(canvas = null){
 			#define _webcl_I 2
 			_webcl_flatIndex += 1.;
 			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
+			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -352,7 +352,7 @@ export function GPU(canvas = null){
 			#define _webcl_I 3
 			_webcl_flatIndex += 1.;
 			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask *= step(_webcl_flatIndex+1., _webcl_opSize[0]);
+			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
