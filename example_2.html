@@ -88,7 +88,7 @@
 
         #output-header {
             position: fixed;
-            bottom: 200px;
+            bottom: 320px;
             left: 0;
             right: 0;
             padding: 5px 10px;
@@ -126,14 +126,14 @@
         <i class="fa-solid fa-sun"></i>
         <i class="fa-solid fa-moon"></i>
     </button>
-    <canvas id="canvas" style="border: 1px solid var(--border-color);" width="300" height="300"></canvas>
-    <div id="output-header">
+    <canvas id="canvas" style="border: 1px solid var(--border-color);" width="600" height="600"></canvas>
+    <div id="output-header" class="collapsed">
         <span>Console Output</span>
         <button id="toggle-output" aria-label="Toggle console">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-up"></i>
         </button>
     </div>
-    <div id="output"></div>
+    <div id="output" class="collapsed"></div>
     <script>
         // Theme management
         function setTheme(theme) {
@@ -201,9 +201,9 @@
 
                 // Log to original console with appropriate method
                 switch(type) {
-                    case 'ERROR': originalConsole.error(msg); break;
-                    case 'WARNING': originalConsole.warn(msg); break;
-                    default: originalConsole.log(msg);
+                    case 'ERROR': originalConsole.error(...args); break;
+                    case 'WARNING': originalConsole.warn(...args); break;
+                    default: originalConsole.log(...args);
                 }
             } finally {
                 isLogging = false;
@@ -260,43 +260,58 @@
 		import {GPU} from './WebCL.js';
 		var canvas = document.getElementById('canvas');
 		var myGPU = new GPU(canvas);
-
-        let initial_state = new Array(64).fill(0).map(() => Math.random() > 0.5 ? 1 : 0);
-        let buf1 = new myGPU.Buffer([64], initial_state);
-		let buf2 = new myGPU.Buffer([64], initial_state);
+        const grid_size = 64;
+        let initial_state = new Array(grid_size).fill(0).map(
+            () => new Array(grid_size).fill(0).map(
+                () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
+            )
+        );
+        let buf1 = new myGPU.Buffer([grid_size, grid_size, 4], initial_state);
+		let buf2 = new myGPU.Buffer([grid_size, grid_size, 4], initial_state);
 		buf1.alloc();
 		buf2.alloc();
-		// matSq.alloc();
 		let matProg = new myGPU.Program([buf1.shape], [buf2.shape], 
 		`
-		float indX = float(int(_webcl_index[0]/8.));
-		float indY = mod(_webcl_index[0],8.);
-
-        float inpIndX = mod(indX + 1., 8.);
-        float inpIndY = mod(indY + 2., 8.);
-        float indInp = (inpIndX*8.) + inpIndY;
-		float op = _webcl_readIn0(indInp);
-		_webcl_commitOut0(op);
+        float ix = _webcl_index[0];
+        float iy = _webcl_index[1];
+        float iz = _webcl_index[2];
+        float is_ca = step(iz, 2.5);
+        float is_not_ca = step(2.5, is_ca);
+        float alive_count = _webcl_readIn0(mod(ix+1., ${grid_size}.),iy, iz) + 
+                            _webcl_readIn0(mod(ix-1., ${grid_size}.),iy, iz) + 
+                            _webcl_readIn0(ix,mod(iy+1., ${grid_size}.), iz) + 
+                            _webcl_readIn0(ix,mod(iy-1., ${grid_size}.), iz) + 
+                            _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
+                            _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz) + 
+                            _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
+                            _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz);
+        float neighbour_state = step(1.5, alive_count) * step(alive_count, 3.5);
+        float me_alive = step(0.5, _webcl_readIn0(ix, iy, iz));
+        float me_dead = step(me_alive, 0.5);
+        float birth_state = step(2.5, alive_count) * step(alive_count, 3.5);
+        float op = (me_alive * neighbour_state) + (me_dead * birth_state);
+        _webcl_commitOut0((op*is_ca) + (is_not_ca));
 		`
 		);
         let frameCount = 0;
+        let in_buf  = buf1;
+        let out_buf = buf2;
         function frame(){
-            for(let i=0;i<1;i++){
-                matProg.exec([buf1], [buf2]);
-                matProg.exec([buf2], [buf1]);
-            }
-            buf1.read();
-            buf2.read();
-            // console.log(buf1.data);
-            // console.log(buf2.data);
+            matProg.exec([in_buf], [out_buf]);
             frameCount++;
             console.log(frameCount);
-            
-            if(frameCount > 10){
+            if(frameCount > 10000){
                 console.log('done');
+                out_buf.read();
+                console.log(out_buf.getShapedData());
+                console.log(in_buf.getShapedData());
+                console.log(in_buf, out_buf);
                 return;
             }
-            setTimeout(() => requestAnimationFrame(frame), 1000);
+            let temp = in_buf;
+            in_buf  = out_buf;
+            out_buf = temp;
+            setTimeout(() => requestAnimationFrame(frame), 50);
             // requestAnimationFrame(frame);
         }
         requestAnimationFrame(frame);
