@@ -280,7 +280,7 @@ export function GPU(canvas = null){
 			return unflattenArray(this.data, this.shape);
 		}
 	}
-	function Program(inpShapes, opShapes, code, pixel_code=''){
+	function Program(inpShapes, opShapes, code, libCode='', pixelCode=''){
 		let inpSize = inpShapes.map(x => getShapedArraySize(x));
 		let opSize = opShapes.map(x => getShapedArraySize(x));
 		if(!(opSize.length > 0)){
@@ -296,7 +296,7 @@ export function GPU(canvas = null){
 		let sizeO = getTexSize(opSize[0]);
 		let fragmentShaderCode = `#version 300 es
 		precision highp float;
-		float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);
+		${inpSize.length ? `float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);` : ''}
 		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
 		// const float _webcl_outShape[${opShapes[0].length}] = float[](${opShapes[0].join('.,')}.);
 		${inpSize.length ? `float _webcl_sizeI[${inpSize.length}] = float[](${inpSize.map(x => getTexSize(x)+'.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpSize.length}];` : ''}
@@ -314,8 +314,9 @@ export function GPU(canvas = null){
 		${opShapes.map((x,i) => `#define _webcl_commitOut${i}(val) _webcl_commitFlat${i}(val)`).join('\n')}
 		${generateShapedIndexMacro(opShapes[0], 'Out')}
 		${generateNextShapedIndexMacro(opShapes[0], 'Out')}
+		${libCode}
 		void main(void){
-			${pixel_code}
+			${pixelCode}
 			#define _webcl_i 0.
 			#define _webcl_I 0
 			float _webcl_index[${opShapes[0].length}];
@@ -468,12 +469,12 @@ export function GPU(canvas = null){
         }
 	}
 
-	this.Buffer = function(size, data){
-		return new Buffer(size, data);
+	this.Buffer = function(shape, arr=null){
+		return new Buffer(shape, arr);
 	}
 
-	this.Program = function(inp, op, code){
-		return new Program(inp, op, code);
+	this.Program = function(inp, op, code, libCode='', pixelCode='',){
+		return new Program(inp, op, code, libCode, pixelCode);
 	}
 
 }

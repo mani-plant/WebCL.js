@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark">
 <head>
-    <title>WebCL.js shit matrix example</title>
+    <title>WebCL.js - Conway's Game of Life</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         :root[data-theme="light"] {
@@ -126,6 +126,7 @@
         <i class="fa-solid fa-sun"></i>
         <i class="fa-solid fa-moon"></i>
     </button>
+    <div><h3>Each color channel runs idependent Conways Game of Life</h3></div>
     <canvas id="canvas" style="border: 1px solid var(--border-color);" width="600" height="600"></canvas>
     <div id="output-header" class="collapsed">
         <span>Console Output</span>
@@ -256,70 +257,7 @@
             icon.classList.toggle('fa-chevron-up');
         });
     </script>
-	<script type="module">
-		import {GPU} from './WebCL.js';
-		var canvas = document.getElementById('canvas');
-		var myGPU = new GPU(canvas);
-        const grid_size = 64;
-        let initial_state = new Array(grid_size).fill(0).map(
-            () => new Array(grid_size).fill(0).map(
-                () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
-            )
-        );
-        let buf1 = new myGPU.Buffer([grid_size, grid_size, 4], initial_state);
-		let buf2 = new myGPU.Buffer([grid_size, grid_size, 4], initial_state);
-		buf1.alloc();
-		buf2.alloc();
-		let matProg = new myGPU.Program([buf1.shape], [buf2.shape], 
-		`
-        float ix = _webcl_index[0];
-        float iy = _webcl_index[1];
-        float iz = _webcl_index[2];
-        float is_ca = step(iz, 2.5);
-        float is_not_ca = step(2.5, is_ca);
-        float alive_count = _webcl_readIn0(mod(ix+1., ${grid_size}.),iy, iz) + 
-                            _webcl_readIn0(mod(ix-1., ${grid_size}.),iy, iz) + 
-                            _webcl_readIn0(ix,mod(iy+1., ${grid_size}.), iz) + 
-                            _webcl_readIn0(ix,mod(iy-1., ${grid_size}.), iz) + 
-                            _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
-                            _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz) + 
-                            _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
-                            _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz);
-        float neighbour_state = step(1.5, alive_count) * step(alive_count, 3.5);
-        float me_alive = step(0.5, _webcl_readIn0(ix, iy, iz));
-        float me_dead = step(me_alive, 0.5);
-        float birth_state = step(2.5, alive_count) * step(alive_count, 3.5);
-        float op = (me_alive * neighbour_state) + (me_dead * birth_state);
-        _webcl_commitOut0((op*is_ca) + (is_not_ca));
-		`
-		);
-        let frameCount = 0;
-        let in_buf  = buf1;
-        let out_buf = buf2;
-        function frame(){
-            matProg.exec([in_buf], [out_buf]);
-            frameCount++;
-            console.log(frameCount);
-            if(frameCount > 10000){
-                console.log('done');
-                out_buf.read();
-                console.log(out_buf.getShapedData());
-                console.log(in_buf.getShapedData());
-                console.log(in_buf, out_buf);
-                return;
-            }
-            let temp = in_buf;
-            in_buf  = out_buf;
-            out_buf = temp;
-            setTimeout(() => requestAnimationFrame(frame), 50);
-            // requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
-
-
-		// console.log(matBuf1, matBuf2, matSq);
-		// matSq.read();
-		// console.log(matSq.data);
+	<script type="module" src="game-of-life.js">
 	</script>
 		
 </body>
