@@ -127,11 +127,13 @@ Notes:
 
 ###### TODOs
 ```
-- support for typed buffers and custom percision
-	- float highp (current)
-	- int highp
-	- unsigned
-	- lower percision support
+- access format support (vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4)
+- ~~internal format support (RGBA32F~~, RGBA16F, RGBA8, RGBA8I, RGBA8UI, R32F, R16F, R8, R8I, R8UI)
+- readonly Buffer support
+- program default precision support
+- data type and format support (float, int, uint) (RGBA, RGB, RG, R, ...)
+- custom texture size, and mipmap support
+- sampler object support
+- custom sampling support (via program?)
 - Transpile JS TO Shaders
-
 ```

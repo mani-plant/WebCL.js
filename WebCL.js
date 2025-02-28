@@ -20,8 +20,8 @@ function initGL(canvas){
 	return gl;
 }
 
-function getTexSize(size){
-	return Math.ceil(Math.sqrt(size/4));
+function getTexSize(size, stride){
+	return Math.ceil(Math.sqrt(size/stride));
 }
 function flattenArray(arr, shape) {
 	if (!Array.isArray(arr)) return [arr];
@@ -44,7 +44,8 @@ function getShapedArraySize(shape){
 	return size;
 }
 
-function generateIndexMacro(shape, suffix = '') {
+function generateIndexMacro(params, suffix = '') {
+	let shape = params.shape;
     // Generate stride calculations
     let strides = [];
     let stride = 1;
@@ -70,7 +71,8 @@ function generateIndexMacro(shape, suffix = '') {
     macro += ')';
     return macro;
 }
-function generateShapedIndexMacro(shape, suffix = '') {
+function generateShapedIndexMacro(params, suffix = '') {
+	let shape = params.shape;
     // Calculate strides for each dimension
     let strides = [];
     let stride = 1;
@@ -98,7 +100,8 @@ function generateShapedIndexMacro(shape, suffix = '') {
     macro += `} while(false)\n`;
     return macro;
 }
-function generateNextShapedIndexMacro(shape, suffix = '') {
+function generateNextShapedIndexMacro(params, suffix = '') {
+	let shape = params.shape;
     const dims = shape.length;
     let macro = `#define _webcl_nextShapedIndex${suffix}(shaped_index) do { \\\n`;
     
@@ -142,7 +145,49 @@ function unflattenArray(flatArr, shape) {
 
 export function GPU(canvas = null){
 	let gl = initGL(canvas || document.createElement('canvas'));
-
+	function getStride(internalFormat){
+		let internalFormatToStride = {
+			[gl.RGBA32F]: 4,
+		};
+		return internalFormatToStride[internalFormat];
+	}
+	
+	function getFormat(internalFormat){
+		let internalFormatToFormat = {
+			[gl.RGBA32F]: gl.RGBA,
+		};
+		return internalFormatToFormat[internalFormat];
+	}
+	
+	function getType(internalFormat, type=null){
+		let internalFormatToType = {
+			[gl.RGBA32F]: {
+				default: gl.FLOAT,
+				[gl.FLOAT]: gl.FLOAT,
+			},
+		};
+		if(type == null){
+			return internalFormatToType[internalFormat].default;
+		}
+		return internalFormatToType[internalFormat][type];
+	}
+	
+	function getShaderDataType(internalFormat){
+		let internalFormatToShaderType = {
+			[gl.RGBA32F]: 'vec4',
+		};
+		return internalFormatToShaderType[internalFormat];
+	}
+	function BufferParams(shape, internalFormat, type=null){
+		this.size = getShapedArraySize(shape);
+		this.shape = shape;
+		this.internalFormat = internalFormat;
+		this.stride = getStride(internalFormat);
+		this.texSize = getTexSize(this.size, this.stride);
+		this.format = getFormat(internalFormat);
+		this.type = getType(internalFormat, type);
+		this.shaderDataType = getShaderDataType(internalFormat);
+	}
 	function getFrameBufferStatusMsg(frameBufferStatus){
 		if(frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
 		if(frameBufferStatus == gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT) return 'The attachment types are mismatched or not all framebuffer attachment points are framebuffer attachment complete.';
@@ -196,62 +241,59 @@ export function GPU(canvas = null){
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	}
-	function Buffer(shape, arr = null){
-		let size = getShapedArraySize(shape);
-		this.shape = shape;
-		function createTexture(data, size) {
-			let texture = gl.createTexture();
-			return texture;
-		}
-		function setTexture(texture, data, size) {
-			gl.bindTexture(gl.TEXTURE_2D, texture);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, data);
-			gl.bindTexture(gl.TEXTURE_2D, null);
-			return texture;
-		}
+	function Buffer(shape, arr = null, internalFormat = gl.RGBA32F, type=null){
+		let params = new BufferParams(shape, internalFormat, type);
+		let size = params.size;
+		let texSize = params.texSize;
+		let stride = params.stride;
+		let format = params.format;
+		type = params.type;
+		let texture = null;
+		let data = new Float32Array(texSize*texSize*stride);
 		if(!(size > 0)){
 			throw new Error("Buffer size must be > 0");
 		}
-		this.size = size;
-		this.texSize = getTexSize(size);
-		this.data = new Float32Array(this.texSize*this.texSize*4);
-		this.texture = null;
 		// this.mem = Math.pow(4, Math.ceil(Math.log(this.length) / Math.log(4)));
-		if (this.texSize > maxTextureSize){
+		if (texSize > maxTextureSize){
 			throw new Error("ERROR: Texture size not supported!");
 		}
+		
 		this.set = function(arr){
-			let flatArr = flattenArray(arr, this.shape);
+			let flatArr = flattenArray(arr, shape);
 			// Verify size matches shape
-			if (flatArr.length !== this.size) {
-				throw new Error(`Array size ${flatArr.length} doesn't match buffer shape ${this.shape} (size ${this.size})`);
+			if (flatArr.length !== size) {
+				throw new Error(`Array size ${flatArr.length} doesn't match buffer shape ${shape} (size ${size})`);
 			}
-			for(let i=0;i<Math.min(this.data.length, this.size);i++){
-				this.data[i] = flatArr[i];
+			for(let i=0;i<Math.min(data.length, size);i++){
+				data[i] = flatArr[i];
 			}
 		}
 		if(arr){
 			this.set(arr);
 		}
 		this.alloc = function(){
-			if(this.texture == null){
-				this.texture = createTexture(this.data, this.texSize);
+			if(texture == null){
+				texture = gl.createTexture();
+				this.texture = texture;
 			}
-			setTexture(this.texture, this.data, this.texSize);
-			return this.texture;
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+			gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, texSize, texSize, 0, format, type, data);
+			gl.bindTexture(gl.TEXTURE_2D, null);
+			return texture;
 		}
 		this.free = function(){
-			if(this.texture != null){
-				gl.deleteTexture(this.texture);
+			if(texture != null){
+				gl.deleteTexture(texture);
 			}
 			this.texture = null;
+			texture = null;
 		}
 		this.read = function() {
-			if (!this.texture) {
+			if (!texture) {
 				throw new Error("Texture not allocated on GPU");
 			}
 			
@@ -260,7 +302,7 @@ export function GPU(canvas = null){
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 			
 			// Attach the texture
-			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
+			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 			
 			// Check if framebuffer is complete
 			const frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
@@ -269,20 +311,30 @@ export function GPU(canvas = null){
 			}
 			
 			// Read the pixels
-			gl.readPixels(0, 0, this.texSize, this.texSize, gl.RGBA, gl.FLOAT, this.data);
+			gl.readPixels(0, 0, texSize, texSize, format, type, data);
 			
 			// Cleanup
 			gl.deleteFramebuffer(fbo);
 			
-			return this.data;
+			return data;
 		}
 		this.getShapedData = function(){
-			return unflattenArray(this.data, this.shape);
+			return unflattenArray(data, shape);
 		}
+		this.data = data;
+		this.params = params;
+		this.texture = texture;
 	}
-	function Program(inpShapes, opShapes, code, libCode='', pixelCode=''){
-		let inpSize = inpShapes.map(x => getShapedArraySize(x));
-		let opSize = opShapes.map(x => getShapedArraySize(x));
+	function Program(inpParams, opParams, code, libCode='', pixelCode=''){
+		let inpShapes = inpParams.map(x => x.shape);
+		let opShapes = opParams.map(x => x.shape);
+		let inpSize = inpParams.map(x => x.size);
+		let opSize = opParams.map(x => x.size);
+		let inpTexSize = inpParams.map(x => x.texSize);
+		let opStride = opParams.map(x => x.stride);
+		let inpStride = inpParams.map(x => x.stride);
+		// let inpSize = inpShapes.map(x => getShapedArraySize(x));
+		// let opSize = opShapes.map(x => getShapedArraySize(x));
 		if(!(opSize.length > 0)){
 			throw new Error("output length >0 required");
 		}
@@ -293,36 +345,53 @@ export function GPU(canvas = null){
 			throw new Error("max output buffers supported = ", maxColorUnits);
 		}
 
-		let sizeO = getTexSize(opSize[0]);
+		let sizeO = opParams[0].texSize;
 		let fragmentShaderCode = `#version 300 es
 		precision highp float;
 		${inpSize.length ? `float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);` : ''}
 		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
+		float _webcl_opStride[${opStride.length}] = float[](${opStride.join('.,')}.);
+		${inpStride.length ? `float _webcl_inpStride[${inpStride.length}] = float[](${inpStride.join('.,')}.);` : ''}
 		// const float _webcl_outShape[${opShapes[0].length}] = float[](${opShapes[0].join('.,')}.);
-		${inpSize.length ? `float _webcl_sizeI[${inpSize.length}] = float[](${inpSize.map(x => getTexSize(x)+'.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpSize.length}];` : ''}
+		${inpTexSize.length ? `float _webcl_sizeI[${inpTexSize.length}] = float[](${inpTexSize.map(x => x+'.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpTexSize.length}];` : ''}
 		float _webcl_sizeO = ${sizeO}.;
 		in vec2 _webcl_pos;
-        #define _webcl_getFlatIndex() (( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )*4. + _webcl_i)
-		${opSize.map((x,i) => `layout(location = ${i}) out vec4 _webcl_out${i};`).join('\n')}
+		#define _webcl_getTexIndex() ( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )
+        #define _webcl_getFlatIndex(n) (_webcl_getTexIndex()*_webcl_opStride[n] + _webcl_i)
+		${opParams.map((x,i) => `layout(location = ${i}) out ${x.shaderDataType} _webcl_out${i};`).join('\n')}
 		
-		#define _webcl_readInFlat(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/4.), _webcl_sizeI[n]), floor(floor(i/4.)/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, 4.))]
+		#define _webcl_readInFlat(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/_webcl_inpStride[n]), _webcl_sizeI[n]), floor(floor(i/_webcl_inpStride[n])/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, _webcl_inpStride[n]))]
 		${inpSize.map((x,i) => `#define _webcl_readInFlat${i}(i) _webcl_readInFlat(${i},i)`).join('\n')}
-		${opSize.map((x,i) => `#define _webcl_commitFlat${i}(val) _webcl_out${i}[_webcl_I] = val * _webcl_mask`).join('\n')}
-		${inpShapes.map((x,i) => generateIndexMacro(x, 'In'+i)).join('\n')}
-		${generateIndexMacro(opShapes[0], 'Out')}
+		${opParams.map((x,i) => `#define _webcl_commitFlat${i}(val) _webcl_out${i}${x.shaderDataType !== 'float' ? '[_webcl_I]' : ''} = val * _webcl_mask${i}`).join('\n')}
+		${inpParams.map((x,i) => generateIndexMacro(x, 'In'+i)).join('\n')}
+		${opParams.map((x,i) => generateIndexMacro(x, 'Out'+i)).join('\n')}
+		${//generateIndexMacro(opShapes[0], 'Out')}
+		''}
 		${inpShapes.map((x,i) => `#define _webcl_readIn${i}(${x.map((x,i) => 'x'+i).join(',')}) _webcl_readInFlat${i}(_webcl_getFlatIndexIn${i}(${x.map((x,i) => 'x'+i).join(',')}))`).join('\n')}
 		${opShapes.map((x,i) => `#define _webcl_commitOut${i}(val) _webcl_commitFlat${i}(val)`).join('\n')}
-		${generateShapedIndexMacro(opShapes[0], 'Out')}
-		${generateNextShapedIndexMacro(opShapes[0], 'Out')}
+		${opParams.map((x,i) => generateShapedIndexMacro(x, 'Out'+i)).join('\n')}
+		${opParams.map((x,i) => generateNextShapedIndexMacro(x, 'Out'+i)).join('\n')}
+		${//generateShapedIndexMacro(opShapes[0], 'Out')}
+		''} 
+		${//generateNextShapedIndexMacro(opShapes[0], 'Out')}
+		''}
 		${libCode}
 		void main(void){
 			${pixelCode}
 			#define _webcl_i 0.
 			#define _webcl_I 0
-			float _webcl_index[${opShapes[0].length}];
-			float _webcl_flatIndex = floor(_webcl_getFlatIndex());
-			_webcl_getShapedIndexOut(_webcl_flatIndex, _webcl_index);
-			float _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
+			${
+				opParams.map((x,i) => `
+					float _webcl_index${i}[${x.shape.length}];
+					float _webcl_flatIndex${i} = floor(_webcl_getFlatIndex(${i})); 
+					_webcl_getShapedIndexOut${i}(_webcl_flatIndex${i}, _webcl_index${i});
+					float _webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+				`).join('\n')
+			}
+			//float _webcl_index[${opShapes[0].length}];
+			//float _webcl_flatIndex = floor(_webcl_getFlatIndex());
+			//_webcl_getShapedIndexOut(_webcl_flatIndex, _webcl_index);
+			//float _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -330,9 +399,16 @@ export function GPU(canvas = null){
 			#define _webcl_i 1.
 			#undef _webcl_I
 			#define _webcl_I 1
-			_webcl_flatIndex += 1.;
-			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
+			${
+				opParams.map((x,i) => `
+					_webcl_flatIndex${i} += 1.;
+					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
+					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+				`).join('\n')
+			}
+			// _webcl_flatIndex += 1.;
+			// _webcl_nextShapedIndexOut(_webcl_index);
+			// _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
 			{
 				${code}
 			}
@@ -340,9 +416,13 @@ export function GPU(canvas = null){
 			#define _webcl_i 2.
 			#undef _webcl_I
 			#define _webcl_I 2
-			_webcl_flatIndex += 1.;
-			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
+			${
+				opParams.map((x,i) => `
+					_webcl_flatIndex${i} += 1.;
+					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
+					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+				`).join('\n')
+			}
 			{
 				${code}
 			}
@@ -350,9 +430,13 @@ export function GPU(canvas = null){
 			#define _webcl_i 3.
 			#undef _webcl_I
 			#define _webcl_I 3
-			_webcl_flatIndex += 1.;
-			_webcl_nextShapedIndexOut(_webcl_index);
-			_webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
+			${
+				opParams.map((x,i) => `
+					_webcl_flatIndex${i} += 1.;
+					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
+					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+				`).join('\n')
+			}
 			{
 				${code}
 			}
@@ -445,6 +529,7 @@ export function GPU(canvas = null){
 				}
 			}
 			if(previewIndex !== null && previewIndex < op.length){
+				// console.log("previewIndex", previewIndex);
 				gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
 				gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 				gl.readBuffer(gl.COLOR_ATTACHMENT0 + previewIndex);
@@ -453,7 +538,7 @@ export function GPU(canvas = null){
 				// gl.canvas.height = op[previewIndex].texSize;
 				// console.log("canvas", gl.canvas.width, gl.canvas.height);
 				gl.blitFramebuffer(
-					0, 0, op[previewIndex].texSize, op[previewIndex].texSize,  // source
+					0, 0, op[previewIndex].params.texSize, op[previewIndex].params.texSize,  // source
 					0, 0, gl.canvas.width, gl.canvas.height,                    // dest
 					gl.COLOR_BUFFER_BIT,
 					gl.NEAREST
