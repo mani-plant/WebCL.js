@@ -17,6 +17,12 @@ function initGL(canvas){
 	if (!gl.getExtension('EXT_color_buffer_float')){
 		throw new Error('Error: EXT_color_buffer_float not supported.');
 	}
+	// const renderable = gl.getInternalformatParameter(
+	// 	gl.RENDERBUFFER,
+	// 	gl.R32F,
+	// 	gl.SAMPLES
+	// );
+	// console.log("renderable", renderable);
 	return gl;
 }
 
@@ -148,6 +154,9 @@ export function GPU(canvas = null){
 	function getStride(internalFormat){
 		let internalFormatToStride = {
 			[gl.RGBA32F]: 4,
+			[gl.RGB32F]: 3,
+			[gl.RG32F]: 2,
+			[gl.R32F]: 1,
 		};
 		return internalFormatToStride[internalFormat];
 	}
@@ -155,6 +164,9 @@ export function GPU(canvas = null){
 	function getFormat(internalFormat){
 		let internalFormatToFormat = {
 			[gl.RGBA32F]: gl.RGBA,
+			[gl.RGB32F]: gl.RGB,
+			[gl.RG32F]: gl.RG,
+			[gl.R32F]: gl.RED,
 		};
 		return internalFormatToFormat[internalFormat];
 	}
@@ -162,6 +174,18 @@ export function GPU(canvas = null){
 	function getType(internalFormat, type=null){
 		let internalFormatToType = {
 			[gl.RGBA32F]: {
+				default: gl.FLOAT,
+				[gl.FLOAT]: gl.FLOAT,
+			},
+			[gl.RGB32F]: {
+				default: gl.FLOAT,
+				[gl.FLOAT]: gl.FLOAT,
+			},
+			[gl.RG32F]: {
+				default: gl.FLOAT,
+				[gl.FLOAT]: gl.FLOAT,
+			},
+			[gl.R32F]: {
 				default: gl.FLOAT,
 				[gl.FLOAT]: gl.FLOAT,
 			},
@@ -175,6 +199,9 @@ export function GPU(canvas = null){
 	function getShaderDataType(internalFormat){
 		let internalFormatToShaderType = {
 			[gl.RGBA32F]: 'vec4',
+			[gl.RGB32F]: 'vec3',
+			[gl.RG32F]: 'vec2',
+			[gl.R32F]: 'float',
 		};
 		return internalFormatToShaderType[internalFormat];
 	}
@@ -352,7 +379,6 @@ export function GPU(canvas = null){
 		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
 		float _webcl_opStride[${opStride.length}] = float[](${opStride.join('.,')}.);
 		${inpStride.length ? `float _webcl_inpStride[${inpStride.length}] = float[](${inpStride.join('.,')}.);` : ''}
-		// const float _webcl_outShape[${opShapes[0].length}] = float[](${opShapes[0].join('.,')}.);
 		${inpTexSize.length ? `float _webcl_sizeI[${inpTexSize.length}] = float[](${inpTexSize.map(x => x+'.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpTexSize.length}];` : ''}
 		float _webcl_sizeO = ${sizeO}.;
 		in vec2 _webcl_pos;
@@ -365,80 +391,61 @@ export function GPU(canvas = null){
 		${opParams.map((x,i) => `#define _webcl_commitFlat${i}(val) _webcl_out${i}${x.shaderDataType !== 'float' ? '[_webcl_I]' : ''} = val * _webcl_mask${i}`).join('\n')}
 		${inpParams.map((x,i) => generateIndexMacro(x, 'In'+i)).join('\n')}
 		${opParams.map((x,i) => generateIndexMacro(x, 'Out'+i)).join('\n')}
-		${//generateIndexMacro(opShapes[0], 'Out')}
-		''}
 		${inpShapes.map((x,i) => `#define _webcl_readIn${i}(${x.map((x,i) => 'x'+i).join(',')}) _webcl_readInFlat${i}(_webcl_getFlatIndexIn${i}(${x.map((x,i) => 'x'+i).join(',')}))`).join('\n')}
 		${opShapes.map((x,i) => `#define _webcl_commitOut${i}(val) _webcl_commitFlat${i}(val)`).join('\n')}
 		${opParams.map((x,i) => generateShapedIndexMacro(x, 'Out'+i)).join('\n')}
 		${opParams.map((x,i) => generateNextShapedIndexMacro(x, 'Out'+i)).join('\n')}
-		${//generateShapedIndexMacro(opShapes[0], 'Out')}
-		''} 
-		${//generateNextShapedIndexMacro(opShapes[0], 'Out')}
-		''}
 		${libCode}
 		void main(void){
 			${pixelCode}
-			#define _webcl_i 0.
-			#define _webcl_I 0
 			${
-				opParams.map((x,i) => `
-					float _webcl_index${i}[${x.shape.length}];
-					float _webcl_flatIndex${i} = floor(_webcl_getFlatIndex(${i})); 
-					_webcl_getShapedIndexOut${i}(_webcl_flatIndex${i}, _webcl_index${i});
-					float _webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
-				`).join('\n')
-			}
-			//float _webcl_index[${opShapes[0].length}];
-			//float _webcl_flatIndex = floor(_webcl_getFlatIndex());
-			//_webcl_getShapedIndexOut(_webcl_flatIndex, _webcl_index);
-			//float _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
-			{
-				${code}
-			}
-			#undef _webcl_i
-			#define _webcl_i 1.
-			#undef _webcl_I
-			#define _webcl_I 1
-			${
-				opParams.map((x,i) => `
-					_webcl_flatIndex${i} += 1.;
-					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
-					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
-				`).join('\n')
-			}
-			// _webcl_flatIndex += 1.;
-			// _webcl_nextShapedIndexOut(_webcl_index);
-			// _webcl_mask = step(_webcl_flatIndex+0.5, _webcl_opSize[0]);
-			{
-				${code}
-			}
-			#undef _webcl_i
-			#define _webcl_i 2.
-			#undef _webcl_I
-			#define _webcl_I 2
-			${
-				opParams.map((x,i) => `
-					_webcl_flatIndex${i} += 1.;
-					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
-					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
-				`).join('\n')
-			}
-			{
-				${code}
-			}
-			#undef _webcl_i
-			#define _webcl_i 3.
-			#undef _webcl_I
-			#define _webcl_I 3
-			${
-				opParams.map((x,i) => `
-					_webcl_flatIndex${i} += 1.;
-					_webcl_nextShapedIndexOut${i}(_webcl_index${i});
-					_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
-				`).join('\n')
-			}
-			{
-				${code}
+				[0,1,2,3].map(channel_index => {
+					let out = ``;
+					if(channel_index > 0){
+						out += `
+							#undef _webcl_i
+							#undef _webcl_I
+						`;
+					}
+					out += `
+						#define _webcl_i ${channel_index}.
+						#define _webcl_I ${channel_index}
+					`;
+					out += opParams.map((x,i) => {
+						if(channel_index == 0){
+							return `
+								#define _webcl_available_out${i}
+								float _webcl_index${i}[${x.shape.length}];
+								float _webcl_flatIndex${i} = floor(_webcl_getFlatIndex(${i})); 
+								_webcl_getShapedIndexOut${i}(_webcl_flatIndex${i}, _webcl_index${i});
+								float _webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+							`
+						}else{
+							// if(x.stride == channel_index){
+							// 	return `
+							// 		#undef _webcl_available_out${i}
+							// 	`;
+							// }else 
+							if(x.stride <= channel_index){
+								return `
+									#undef _webcl_available_out${i}
+								`;
+							}else{
+								return `
+									_webcl_flatIndex${i} += 1.;
+									_webcl_nextShapedIndexOut${i}(_webcl_index${i});
+									_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+								`;
+							}
+						}
+					}).join('\n');
+					out += `
+						{
+							${code}
+						}
+					`;
+					return out;
+				}).join('\n')
 			}
 				
 		}
@@ -515,16 +522,12 @@ export function GPU(canvas = null){
 				if(transferIndices === null){
 					for(let i=0;i<op.length;i++){
 						gl.readBuffer(gl.COLOR_ATTACHMENT0+i);
-						// assuming a framebuffer is bound with the texture to read attached
-						// const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
-						// const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
-						// console.log(gl, format, type);
-						gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[i].data);
+						gl.readPixels(0, 0, op[i].params.texSize, op[i].params.texSize, op[i].params.format, op[i].params.type, op[i].data);
 					}
 				}else{
 					for(let i=0;i<transferIndices.length;i++){
 						gl.readBuffer(gl.COLOR_ATTACHMENT0+transferIndices[i]);
-						gl.readPixels(0, 0, sizeO, sizeO, gl.RGBA, gl.FLOAT, op[transferIndices[i]].data);
+						gl.readPixels(0, 0, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.format, op[transferIndices[i]].params.type, op[transferIndices[i]].data);
 					}
 				}
 			}

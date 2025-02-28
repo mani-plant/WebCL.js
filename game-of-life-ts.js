@@ -1,7 +1,7 @@
 import {GPU} from './WebCL.js';
 var canvas = document.getElementById('canvas');
 var myGPU = new GPU(canvas);
-const grid_size = 64;
+const grid_size = 256;
 // let initial_state = new Array(grid_size).fill(0).map(
 //     () => new Array(grid_size).fill(0).map(
 //         () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
@@ -19,7 +19,7 @@ let init_prog = new myGPU.Program([], [buf1.shape],
     float iy = _webcl_index[1];
     float iz = _webcl_index[2];
     float seed = fract(gen_seed(gen_seed(ix*iy*(iz+1.))));
-    float op = step(0.9, seed);
+    float op = step(0.5, seed)*step(iz, 1.5)*step(.5, iz);
     _webcl_commitOut0(op);
     `,`
     #define gen_seed(val) (sin(val) * ${seed})
