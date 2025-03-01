@@ -7,8 +7,8 @@ const grid_size = 64;
 //         () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
 //     )
 // );
-let buf1 = new myGPU.Buffer([grid_size, grid_size, 4]);
-let buf2 = new myGPU.Buffer([grid_size, grid_size, 4]);
+let buf1 = new myGPU.Buffer([grid_size, grid_size, 2]);
+let buf2 = new myGPU.Buffer([grid_size, grid_size, 2]);
 buf1.alloc();
 buf2.alloc();
 let seed = Math.random()*10000;
