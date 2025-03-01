@@ -314,7 +314,7 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT_2_10_10_10_REV,
 				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV
 			},
-			shaderType: 'vec4'
+			shaderType: 'uvec4'
 		},
 		[gl.SRGB8_ALPHA8]: {
 			format: gl.RGBA,
