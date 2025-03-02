@@ -126,7 +126,6 @@ Notes:
 2. Any buffer can be used with any program any number of times without the need to transfer buffer data back to cpu
 
 ###### TODOs
-```
 - access format support (vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4)
 - ~~custom internal formats and types support~~
 - depth and stencil buffer support
@@ -138,6 +137,8 @@ Notes:
 - sampler object support
 - custom sampling support (via program?)
 - Transpile JS TO Shaders
-- ~render directly to canvas~
-- ~preview support for non normalized internal formats (gl.RGBA8UI etc)~
-```
+- ~~render directly to canvas~~
+- ~~preview support for non normalized internal formats (gl.RGBA8UI etc)~~
+- ~~preview support for uint/int textures~~
+- ~~preview support for float textures~~
+- ~~viewport configuration support~~
