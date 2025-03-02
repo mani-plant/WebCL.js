@@ -148,7 +148,12 @@ function unflattenArray(flatArr, shape) {
 
 	return result;
 }
-
+const viewPortSources = {
+	default: 0,
+	buffer: 0,
+	canvas: 1,
+	params: 2,
+}
 export function GPU(canvas = null) {
 	let gl = initGL(canvas || document.createElement('canvas'));
 	this.gl = gl;
@@ -719,7 +724,7 @@ export function GPU(canvas = null) {
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	}
-	function Buffer(shape, arr = null, internalFormat = gl.RG8UI, type = null) {
+	function Buffer(shape, { arr = null, internalFormat = gl.RGBA8, type = null }) {
 		let params = new BufferParams(shape, internalFormat, type);
 		let size = params.size;
 		let texSize = params.texSize;
@@ -803,7 +808,7 @@ export function GPU(canvas = null) {
 		this.params = params;
 		this.texture = texture;
 	}
-	function Program(inpParams, opParams, code, libCode = '', pixelCode = '', fullFragmentCode = null) {
+	function Program(inpParams, opParams, code, { libCode = '', pixelCode = '', fullFragmentCode = null }) {
 		if (opParams.length == 0) {
 			opParams = [
 				new BufferParams([gl.canvas.width, gl.canvas.height, 4], gl.RGBA)
@@ -926,12 +931,32 @@ export function GPU(canvas = null) {
 
 
 		this.new = function (newInpSize, newOpSize) {
-			return new Program(newInpSize, newOpSize, code, libCode, pixelCode, fullFragmentCode);
+			return new Program(newInpSize, newOpSize, code, { libCode, pixelCode, fullFragmentCode });
 		}
 		let fbo = null;
 		const drawPrograms = {};
 		let lastOp = null;
-		this.exec = function (inp, op, previewIndex = 0, scaleToCanvas = true, transferOutput = false, transferIndices = null) {
+		function getViewport(viewPortSource, op, viewport = null) {
+			if (!viewport) {
+				if (viewPortSource == viewPortSources.default) {
+					viewport = [0, 0, op[0].params.texSize, op[0].params.texSize];
+				} else if (viewPortSource == viewPortSources.canvas) {
+					viewport = [0, 0, gl.canvas.width, gl.canvas.height];
+				} else if (viewPortSource == viewPortSources.params) {
+					viewport = [0, 0, sizeO, sizeO];
+				} else {
+					throw new Error("Invalid viewPortSource");
+				}
+			}
+			return viewport;
+		}
+		this.exec = function (inp, op, {
+			previewIndex = 0, forcePreviewViaProgram = false, forceNewProgram = false, 
+			previewViewport = null, previewViewportSource = viewPortSources.default,
+			canvasViewport = null, canvasViewportSource = viewPortSources.canvas,
+			viewPortSource = viewPortSources.default, forceCanvas = false, viewport = null,
+			transferOutput = false, transferIndices = null
+		}) {
 			gl.linkProgram(program);
 			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
@@ -942,23 +967,26 @@ export function GPU(canvas = null) {
 			let aPosition = gl.getAttribLocation(program, '_webcl_position');
 			let aTexture = gl.getAttribLocation(program, '_webcl_texture');
 			let colAt = [];
-			gl.viewport(0, 0, sizeO, sizeO);
-			if (op.length > 0) {
+			if (op.length == 0) {
+				forceCanvas = true;
+				viewPortSource = viewPortSources.canvas;
+			}
+			viewport = getViewport(viewPortSource, op, viewport);
+			gl.viewport(...viewport);
+			op.forEach(x => x.alloc());
+			if (!forceCanvas) {
 				fbo = fbo || gl.createFramebuffer();
 				gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 				for (let i = 0; i < op.length; i++) {
-					op[i].alloc();
 					gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, op[i].texture, 0);
 					colAt.push(gl.COLOR_ATTACHMENT0 + i);
 					gl.drawBuffers(colAt);
 				}
 			} else {
-				if (scaleToCanvas) {
-					gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-				}
 				fbo = null;
 				gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 			}
+
 			let frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 			if (frameBufferStatus !== gl.FRAMEBUFFER_COMPLETE) {
 				throw new Error('ERROR: ' + getFrameBufferStatusMsg(frameBufferStatus));
@@ -980,30 +1008,39 @@ export function GPU(canvas = null) {
 
 			gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 			if (transferOutput) {
-				if (transferIndices === null) {
-					for (let i = 0; i < op.length; i++) {
-						gl.readBuffer(gl.COLOR_ATTACHMENT0 + i);
-						gl.readPixels(0, 0, op[i].params.texSize, op[i].params.texSize, op[i].params.format, op[i].params.type, op[i].data);
-					}
-				} else {
-					for (let i = 0; i < transferIndices.length; i++) {
-						gl.readBuffer(gl.COLOR_ATTACHMENT0 + transferIndices[i]);
-						gl.readPixels(0, 0, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.format, op[transferIndices[i]].params.type, op[transferIndices[i]].data);
-					}
-				}
+				this.transferOutput(transferIndices);
 			}
 			lastOp = op;
 			if (previewIndex !== null && previewIndex < op.length) {
-				this.preview(previewIndex);
+				this.preview(previewIndex, { forcePreviewViaProgram, forceNewProgram, previewViewport, previewViewportSource, canvasViewport, canvasViewportSource });
 			}
 		}
-
-		this.preview = function (previewIndex) {
+		this.transferOutput = function (transferIndices = null) {
+			let op = lastOp;
+			if (transferIndices === null) {
+				for (let i = 0; i < op.length; i++) {
+					gl.readBuffer(gl.COLOR_ATTACHMENT0 + i);
+					gl.readPixels(0, 0, op[i].params.texSize, op[i].params.texSize, op[i].params.format, op[i].params.type, op[i].data);
+				}
+			} else {
+				for (let i = 0; i < transferIndices.length; i++) {
+					gl.readBuffer(gl.COLOR_ATTACHMENT0 + transferIndices[i]);
+					gl.readPixels(0, 0, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.texSize, op[transferIndices[i]].params.format, op[transferIndices[i]].params.type, op[transferIndices[i]].data);
+				}
+			}
+		}
+		this.preview = function (previewIndex, {
+			forcePreviewViaProgram = false, forceNewProgram = false,
+			previewViewport = null, previewViewportSource = viewPortSources.default,
+			canvasViewport = null, canvasViewportSource = viewPortSources.canvas
+		}) {
 			if (lastOp == null) {
 				throw new Error("No output to preview!");
 			}
+			previewViewport = getViewport(previewViewportSource, lastOp, previewViewport);
+			canvasViewport = getViewport(canvasViewportSource, lastOp, canvasViewport);
 			const shaderDataFormat = opParams[previewIndex].shaderDataFormat;
-			if (shaderDataFormat == gl.FLOAT) {
+			if (shaderDataFormat == gl.FLOAT && !forcePreviewViaProgram) {
 				gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
 				gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 				gl.readBuffer(gl.COLOR_ATTACHMENT0 + previewIndex);
@@ -1011,47 +1048,73 @@ export function GPU(canvas = null) {
 				// gl.canvas.height = op[previewIndex].texSize;
 				// console.log("canvas", gl.canvas.width, gl.canvas.height);
 				gl.blitFramebuffer(
-					0, 0, opParams[previewIndex].texSize, opParams[previewIndex].texSize,  // source
-					0, 0, gl.canvas.width, gl.canvas.height,                    // dest
+					...previewViewport,  // source
+					...canvasViewport,   // dest
 					gl.COLOR_BUFFER_BIT,
 					gl.NEAREST
 				);
 			} else {
-				console.warn("not recommended to preview uint or int textures.");
-				this.previewViaProgram(previewIndex);
+				this.previewViaProgram(previewIndex, { forceNewProgram, previewViewport, previewViewportSource, canvasViewport, canvasViewportSource });
 			}
 		}
-		this.previewViaProgram = function (previewIndex) {
+		this.previewViaProgram = function (previewIndex, {
+			forceNewProgram = false,
+			previewViewport = null, previewViewportSource = viewPortSources.default,
+			canvasViewport = null, canvasViewportSource = viewPortSources.canvas
+		}) {
 			if (lastOp == null) {
 				throw new Error("No output to preview!");
 			}
+			console.warn("Previewing via program is not recommended - uint/int textures are not recommended for preview.");
+			if(previewViewport || previewViewportSource){
+				console.warn("previewViewport and previewViewportSource are not supported for previewViaProgram.");
+			}
+
+			canvasViewport = getViewport(canvasViewportSource, lastOp, canvasViewport);
 			let drawProg = drawPrograms[previewIndex];
-			if (!drawProg) {
-				drawProg = new Program([opParams[previewIndex]], [],
+			if (!drawProg || forceNewProgram) {
+				drawProg = new Program([forceNewProgram ? lastOp[previewIndex].params : opParams[previewIndex]], [],
 					``,
 					``,
 					`
 						_webcl_out0 = vec4(texture(_webcl_uTexture0, _webcl_pos).rgba);
-						`
+					`
 				);
+				if (drawProg) {
+					drawProg.free();
+				}
 				drawPrograms[previewIndex] = drawProg;
 			}
-			drawProg.exec([lastOp[previewIndex]], []);
+			drawProg.exec([lastOp[previewIndex]], [], {
+				viewPortSource: canvasViewportSource,
+				viewport: canvasViewport,
+				forceCanvas: true
+			});
 		}
 
 		this.free = function () {
 			gl.deleteProgram(program);
 			gl.deleteShader(fragmentShader);
 			gl.deleteFramebuffer(fbo);
+			for (let i in drawPrograms) {
+				drawPrograms[i].free();
+			}
 		}
 	}
 
-	this.Buffer = function (shape, arr = null, internalFormat = gl.RG8UI, type = null) {
-		return new Buffer(shape, arr, internalFormat, type);
+	this.Buffer = function (shape, { arr = null, internalFormat = gl.RG8UI, type = null }) {
+		return new Buffer(shape, { arr, internalFormat, type });
 	}
 
-	this.Program = function (inpParams, opParams, code, libCode = '', pixelCode = '') {
-		return new Program(inpParams, opParams, code, libCode, pixelCode);
+	this.Program = function (inpParams, opParams, code, { libCode = '', pixelCode = '', fullFragmentCode = null }) {
+		return new Program(inpParams, opParams, code, { libCode, pixelCode, fullFragmentCode });
 	}
+}
 
+// Attach viewPortSources to GPU
+GPU.viewPortSources = viewPortSources;
+
+// Make GPU available in the global scope for browser console access
+if (typeof window !== 'undefined') {
+	window.GPU = GPU;
 }
