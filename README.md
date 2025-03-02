@@ -127,7 +127,7 @@ Notes:
 
 ###### TODOs
 - access format support (vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4)
-- ~~custom internal formats and types support~~
+- ~custom internal formats and types support~
 - depth and stencil buffer support
 - readonly Buffer support (texStorage)
 - write only Buffer support (renderBuffer)
