@@ -128,12 +128,16 @@ Notes:
 ###### TODOs
 ```
 - access format support (vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4)
-- ~~internal format support (RGBA32F, R32F, RG32F~~, RGBA16F, RGBA8, RGBA8I, RGBA8UI, R16F, R8, R8I, R8UI)
-- readonly Buffer support
+- ~~custom internal formats and types support~~
+- depth and stencil buffer support
+- readonly Buffer support (texStorage)
+- write only Buffer support (renderBuffer)
 - program default precision support
-- data type and format support (float, int, uint) (RGBA, RGB, RG, R, ...)
+- variables precision support - auto/manual
 - custom texture size, and mipmap support
 - sampler object support
 - custom sampling support (via program?)
 - Transpile JS TO Shaders
+- ~render directly to canvas~
+- ~preview support for non normalized internal formats (gl.RGBA8UI etc)~
 ```
