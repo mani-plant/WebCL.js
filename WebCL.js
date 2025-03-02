@@ -17,12 +17,12 @@ function initGL(canvas) {
 	if (!gl.getExtension('EXT_color_buffer_float')) {
 		throw new Error('Error: EXT_color_buffer_float not supported.');
 	}
-	const renderable = gl.getInternalformatParameter(
-		gl.RENDERBUFFER,
-		gl.RG8,
-		gl.SAMPLES
-	);
-	console.log("renderable", renderable);
+	// const renderable = gl.getInternalformatParameter(
+	// 	gl.RENDERBUFFER,
+	// 	gl.RG8,
+	// 	gl.SAMPLES
+	// );
+	// console.log("renderable", renderable);
 	return gl;
 }
 
@@ -151,33 +151,115 @@ function unflattenArray(flatArr, shape) {
 
 export function GPU(canvas = null) {
 	let gl = initGL(canvas || document.createElement('canvas'));
-	const typeToArrayType = {
-		[gl.BYTE]: Int8Array,
-		[gl.UNSIGNED_BYTE]: Uint8Array,
-		[gl.SHORT]: Int16Array,
-		[gl.UNSIGNED_SHORT]: Uint16Array,
-		[gl.UNSIGNED_SHORT_5_6_5]: Uint16Array,
-		[gl.UNSIGNED_SHORT_5_5_5_1]: Uint16Array,
-		[gl.UNSIGNED_SHORT_4_4_4_4]: Uint16Array,
-		[gl.INT]: Int32Array,
-		[gl.UNSIGNED_INT]: Uint32Array,
-		[gl.UNSIGNED_INT_5_9_9_9_REV]: Uint32Array,
-		[gl.UNSIGNED_INT_2_10_10_10_REV]: Uint32Array,
-		[gl.UNSIGNED_INT_10F_11F_11F_REV]: Uint32Array,
-		[gl.UNSIGNED_INT_24_8]: Uint32Array,
-		[gl.HALF_FLOAT]: Uint16Array,
-		[gl.FLOAT]: Float32Array
+	this.gl = gl;
+	const typeInfo = {
+		[gl.HALF_FLOAT]: {
+			'arrayType': Uint16Array
+		},
+		[gl.FLOAT]: {
+			'arrayType': Float32Array
+		},
+		[gl.BYTE]: {
+			'arrayType': Int8Array
+		},
+		[gl.UNSIGNED_BYTE]: {
+			'arrayType': Uint8Array
+		},
+		[gl.SHORT]: {
+			'arrayType': Int16Array
+		},
+		[gl.UNSIGNED_SHORT]: {
+			'arrayType': Uint16Array
+		},
+		[gl.INT]: {
+			'arrayType': Int32Array
+		},
+		[gl.UNSIGNED_INT]: {
+			'arrayType': Uint32Array
+		},
+		[gl.UNSIGNED_SHORT_5_6_5]: { // packed
+			'arrayType': Uint16Array
+		},
+		[gl.UNSIGNED_SHORT_5_5_5_1]: { // packed
+			'arrayType': Uint16Array
+		},
+		[gl.UNSIGNED_SHORT_4_4_4_4]: { // packed
+			'arrayType': Uint16Array
+		},
+		[gl.UNSIGNED_INT_5_9_9_9_REV]: { // packed
+			'arrayType': Uint32Array
+		},
+		[gl.UNSIGNED_INT_2_10_10_10_REV]: { // packed
+			'arrayType': Uint32Array
+		},
+		[gl.UNSIGNED_INT_10F_11F_11F_REV]: { // packed
+			'arrayType': Uint32Array
+		},
+		[gl.UNSIGNED_INT_24_8]: { // packed
+			'arrayType': Uint32Array
+		},
 	};
-	const formatToStride = {
-		[gl.RGBA]: 4,
-		[gl.RGB]: 3,
-		[gl.RG]: 2,
-		[gl.RED]: 1,
-		[gl.RGBA_INTEGER]: 4,
-		[gl.RGB_INTEGER]: 3,
-		[gl.RG_INTEGER]: 2,
-		[gl.RED_INTEGER]: 1,
+
+	const formatInfo = {
+		[gl.RGBA]: {
+			channels: 4,
+		},
+		[gl.RGB]: {
+			channels: 3,
+		},
+		[gl.RG]: {
+			channels: 2,
+		},
+		[gl.RED]: {
+			channels: 1,
+		},
+		[gl.RGBA_INTEGER]: {
+			channels: 4,
+		},
+		[gl.RGB_INTEGER]: {
+			channels: 3,
+		},
+		[gl.RG_INTEGER]: {
+			channels: 2,
+		},
+		[gl.RED_INTEGER]: {
+			channels: 1,
+		},
+	};
+
+	const shaderDataFormatInfo = {
+		[gl.FLOAT]: {
+			base: 'float',
+			shaderDataType: {
+				1: 'float',
+				2: 'vec2',
+				3: 'vec3',
+				4: 'vec4',
+			},
+			samplerDataType: 'sampler2D'
+		},
+		[gl.INT]: {
+			base: 'int',
+			shaderDataType: {
+				1: 'int',
+				2: 'ivec2',
+				3: 'ivec3',
+				4: 'ivec4',
+			},
+			samplerDataType: 'isampler2D'
+		},
+		[gl.UNSIGNED_INT]: {
+			base: 'uint',
+			shaderDataType: {
+				1: 'uint',
+				2: 'uvec2',
+				3: 'uvec3',
+				4: 'uvec4',
+			},
+			samplerDataType: 'usampler2D'
+		},
 	}
+
 	const internalFormatsInfo = {
 		[gl.RGBA32F]: {
 			format: gl.RGBA,
@@ -185,7 +267,29 @@ export function GPU(canvas = null) {
 				default: gl.FLOAT,
 				[gl.FLOAT]: gl.FLOAT
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT,
+			// channelsInfo: {
+			// 	r: {
+			// 		size: 32,
+			// 	},
+			// 	g: {
+			// 		size: 32,
+			// 	},
+			// 	b: {
+			// 		size: 32,
+			// 	},
+			// 	a: {
+			// 		size: 32,
+			// 	},
+			// },
+			// renderInfo: {
+			// 	colorRenderable: {
+			// 		nativeSupported: false,
+			// 		dependencies: [gl.EXT_COLOR_BUFFER_FLOAT],
+			// 		supported: true
+			// 	}
+			// }
 		},
 		[gl.R11F_G11F_B10F]: {
 			format: gl.RGB,
@@ -195,7 +299,8 @@ export function GPU(canvas = null) {
 				[gl.HALF_FLOAT]: gl.HALF_FLOAT,
 				[gl.UNSIGNED_INT_10F_11F_11F_REV]: gl.UNSIGNED_INT_10F_11F_11F_REV
 			},
-			shaderType: 'vec3'
+			shaderType: 'vec3',
+			shaderDataFormat: gl.FLOAT,
 		},
 		[gl.RG32F]: {
 			format: gl.RG,
@@ -203,7 +308,8 @@ export function GPU(canvas = null) {
 				default: gl.FLOAT,
 				[gl.FLOAT]: gl.FLOAT
 			},
-			shaderType: 'vec2'
+			shaderType: 'vec2',
+			shaderDataFormat: gl.FLOAT,
 		},
 		[gl.R32F]: {
 			format: gl.RED,
@@ -211,7 +317,8 @@ export function GPU(canvas = null) {
 				default: gl.FLOAT,
 				[gl.FLOAT]: gl.FLOAT
 			},
-			shaderType: 'float'
+			shaderType: 'float',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGBA16F]: {
 			format: gl.RGBA,
@@ -220,7 +327,8 @@ export function GPU(canvas = null) {
 				[gl.FLOAT]: gl.FLOAT,
 				[gl.HALF_FLOAT]: gl.HALF_FLOAT
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RG16F]: {
 			format: gl.RG,
@@ -229,7 +337,8 @@ export function GPU(canvas = null) {
 				[gl.FLOAT]: gl.FLOAT,
 				[gl.HALF_FLOAT]: gl.HALF_FLOAT
 			},
-			shaderType: 'vec2'
+			shaderType: 'vec2',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.R16F]: {
 			format: gl.RED,
@@ -238,7 +347,8 @@ export function GPU(canvas = null) {
 				[gl.FLOAT]: gl.FLOAT,
 				[gl.HALF_FLOAT]: gl.HALF_FLOAT
 			},
-			shaderType: 'float'
+			shaderType: 'float',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.R8]: {
 			format: gl.RED,
@@ -246,7 +356,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'float'
+			shaderType: 'float',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RG8]: {
 			format: gl.RG,
@@ -254,7 +365,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'vec2'
+			shaderType: 'vec2',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB8]: {
 			format: gl.RGB,
@@ -262,7 +374,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'vec3'
+			shaderType: 'vec3',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB565]: {
 			format: gl.RGB,
@@ -271,7 +384,8 @@ export function GPU(canvas = null) {
 				[gl.UNSIGNED_SHORT_5_6_5]: gl.UNSIGNED_SHORT_5_6_5,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'vec3'
+			shaderType: 'vec3',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGBA4]: {
 			format: gl.RGBA,
@@ -280,7 +394,8 @@ export function GPU(canvas = null) {
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_SHORT_4_4_4_4]: gl.UNSIGNED_SHORT_4_4_4_4
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB5_A1]: {
 			format: gl.RGBA,
@@ -290,7 +405,8 @@ export function GPU(canvas = null) {
 				[gl.UNSIGNED_SHORT_5_5_5_1]: gl.UNSIGNED_SHORT_5_5_5_1,
 				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGBA8]: {
 			format: gl.RGBA,
@@ -298,7 +414,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB10_A2]: {
 			format: gl.RGBA,
@@ -306,7 +423,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT_2_10_10_10_REV,
 				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB10_A2UI]: {
 			format: gl.RGBA_INTEGER,
@@ -314,7 +432,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT_2_10_10_10_REV,
 				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV
 			},
-			shaderType: 'uvec4'
+			shaderType: 'uvec4',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.SRGB8_ALPHA8]: {
 			format: gl.RGBA,
@@ -322,7 +441,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.R8I]: {
 			format: gl.RED_INTEGER,
@@ -330,7 +450,8 @@ export function GPU(canvas = null) {
 				default: gl.BYTE,
 				[gl.BYTE]: gl.BYTE
 			},
-			shaderType: 'int'
+			shaderType: 'int',
+			shaderDataFormat: gl.INT
 		},
 		[gl.R8UI]: {
 			format: gl.RED_INTEGER,
@@ -338,7 +459,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'uint'
+			shaderType: 'uint',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.R16I]: {
 			format: gl.RED_INTEGER,
@@ -346,7 +468,8 @@ export function GPU(canvas = null) {
 				default: gl.SHORT,
 				[gl.SHORT]: gl.SHORT
 			},
-			shaderType: 'int'
+			shaderType: 'int',
+			shaderDataFormat: gl.INT
 		},
 		[gl.R16UI]: {
 			format: gl.RED_INTEGER,
@@ -354,7 +477,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_SHORT,
 				[gl.UNSIGNED_SHORT]: gl.UNSIGNED_SHORT
 			},
-			shaderType: 'uint'
+			shaderType: 'uint',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RG32I]: {
 			format: gl.RG_INTEGER,
@@ -362,7 +486,8 @@ export function GPU(canvas = null) {
 				default: gl.INT,
 				[gl.INT]: gl.INT
 			},
-			shaderType: 'ivec2'
+			shaderType: 'ivec2',
+			shaderDataFormat: gl.INT
 		},
 		[gl.R32UI]: {
 			format: gl.RED_INTEGER,
@@ -370,7 +495,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT,
 				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT
 			},
-			shaderType: 'uint'
+			shaderType: 'uint',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RG8I]: {
 			format: gl.RG_INTEGER,
@@ -378,7 +504,8 @@ export function GPU(canvas = null) {
 				default: gl.BYTE,
 				[gl.BYTE]: gl.BYTE
 			},
-			shaderType: 'ivec2'
+			shaderType: 'ivec2',
+			shaderDataFormat: gl.INT
 		},
 		[gl.RG8UI]: {
 			format: gl.RG_INTEGER,
@@ -386,7 +513,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'uvec2'
+			shaderType: 'uvec2',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RG16I]: {
 			format: gl.RG_INTEGER,
@@ -394,7 +522,8 @@ export function GPU(canvas = null) {
 				default: gl.SHORT,
 				[gl.SHORT]: gl.SHORT
 			},
-			shaderType: 'ivec2'
+			shaderType: 'ivec2',
+			shaderDataFormat: gl.INT
 		},
 		[gl.RG16UI]: {
 			format: gl.RG_INTEGER,
@@ -402,7 +531,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_SHORT,
 				[gl.UNSIGNED_SHORT]: gl.UNSIGNED_SHORT
 			},
-			shaderType: 'uvec2'
+			shaderType: 'uvec2',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RG32UI]: {
 			format: gl.RG_INTEGER,
@@ -410,7 +540,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT,
 				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT
 			},
-			shaderType: 'uvec2'
+			shaderType: 'uvec2',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RGBA8I]: {
 			format: gl.RGBA_INTEGER,
@@ -418,7 +549,8 @@ export function GPU(canvas = null) {
 				default: gl.BYTE,
 				[gl.BYTE]: gl.BYTE
 			},
-			shaderType: 'ivec4'
+			shaderType: 'ivec4',
+			shaderDataFormat: gl.INT
 		},
 		[gl.RGBA8UI]: {
 			format: gl.RGBA_INTEGER,
@@ -426,7 +558,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE
 			},
-			shaderType: 'uvec4'
+			shaderType: 'uvec4',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RGBA16I]: {
 			format: gl.RGBA_INTEGER,
@@ -434,7 +567,8 @@ export function GPU(canvas = null) {
 				default: gl.SHORT,
 				[gl.SHORT]: gl.SHORT
 			},
-			shaderType: 'ivec4'
+			shaderType: 'ivec4',
+			shaderDataFormat: gl.INT
 		},
 		[gl.RGBA16UI]: {
 			format: gl.RGBA_INTEGER,
@@ -442,7 +576,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_SHORT,
 				[gl.UNSIGNED_SHORT]: gl.UNSIGNED_SHORT
 			},
-			shaderType: 'uvec4'
+			shaderType: 'uvec4',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RGBA32I]: {
 			format: gl.RGBA_INTEGER,
@@ -450,7 +585,8 @@ export function GPU(canvas = null) {
 				default: gl.INT,
 				[gl.INT]: gl.INT
 			},
-			shaderType: 'ivec4'
+			shaderType: 'ivec4',
+			shaderDataFormat: gl.INT
 		},
 		[gl.RGBA32UI]: {
 			format: gl.RGBA_INTEGER,
@@ -458,7 +594,8 @@ export function GPU(canvas = null) {
 				default: gl.UNSIGNED_INT,
 				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT
 			},
-			shaderType: 'uvec4'
+			shaderType: 'uvec4',
+			shaderDataFormat: gl.UNSIGNED_INT
 		},
 		[gl.RGBA]: {
 			format: gl.RGBA,
@@ -468,7 +605,8 @@ export function GPU(canvas = null) {
 				[gl.UNSIGNED_SHORT_4_4_4_4]: gl.UNSIGNED_SHORT_4_4_4_4,
 				[gl.UNSIGNED_SHORT_5_5_5_1]: gl.UNSIGNED_SHORT_5_5_5_1
 			},
-			shaderType: 'vec4'
+			shaderType: 'vec4',
+			shaderDataFormat: gl.FLOAT
 		},
 		[gl.RGB]: {
 			format: gl.RGB,
@@ -477,454 +615,56 @@ export function GPU(canvas = null) {
 				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
 				[gl.UNSIGNED_SHORT_5_6_5]: gl.UNSIGNED_SHORT_5_6_5,
 			},
-			shaderType: 'vec3'
+			shaderType: 'vec3',
+			shaderDataFormat: gl.FLOAT
 		}
 	};
-	function getStride(internalFormat) {
-		let internalFormatToStride = {
-			[gl.RGBA32F]: 4,
-			[gl.R11F_G11F_B10F]: 3,
-			[gl.RG32F]: 2,
-			[gl.R32F]: 1,
-			[gl.RGBA16F]: 4,
-			[gl.RG16F]: 2,
-			[gl.R16F]: 1,
-			[gl.R8]: 1,
-			[gl.RG8]: 2,
-			[gl.RGB8]: 3,
-			[gl.RGB565]: 3,
-			[gl.RGBA4]: 4,
-			[gl.RGB5_A1]: 4,
-			[gl.RGBA8]: 4,
-			[gl.RGB10_A2]: 4,
-			[gl.RGB10_A2UI]: 4,
-			[gl.SRGB8_ALPHA8]: 4,
-			[gl.R8I]: 1,
-			[gl.R8UI]: 1,
-			[gl.R16I]: 1,
-			[gl.R16UI]: 1,
-			[gl.RG32I]: 2,
-			[gl.R32UI]: 1,
-			[gl.RG8I]: 2,
-			[gl.RG8UI]: 2,
-			[gl.RG16I]: 2,
-			[gl.RG16UI]: 2,
-			[gl.RG32I]: 2,
-			[gl.RG32UI]: 2,
-			[gl.RGBA8I]: 4,
-			[gl.RGBA8UI]: 4,
-			[gl.RGBA16I]: 4,
-			[gl.RGBA16UI]: 4,
-			[gl.RGBA32I]: 4,
-			[gl.RGBA32UI]: 4,
-			[gl.RGBA]: 4,
-			[gl.RGB]: 3,
-		};
-		return internalFormatToStride[internalFormat];
-	}
+
+	function getStride(format) {
+		return formatInfo[format].channels;
+	};
 
 	function getFormat(internalFormat) {
-		let internalFormatToFormat = {
-			[gl.RGBA32F]: gl.RGBA,
-			[gl.R11F_G11F_B10F]: gl.RGB,
-			[gl.RG32F]: gl.RG,
-			[gl.R32F]: gl.RED,
-			[gl.RGBA16F]: gl.RGBA,
-			[gl.RG16F]: gl.RG,
-			[gl.R16F]: gl.RED,
-			[gl.R8]: gl.RED,
-			[gl.RG8]: gl.RG,
-			[gl.RGB8]: gl.RGB,
-			[gl.RGB565]: gl.RGB,
-			[gl.RGBA4]: gl.RGBA,
-			[gl.RGB5_A1]: gl.RGBA,
-			[gl.RGBA8]: gl.RGBA,
-			[gl.RGB10_A2]: gl.RGBA,
-			[gl.RGB10_A2UI]: gl.RGBA,
-			[gl.SRGB8_ALPHA8]: gl.RGBA,
-			[gl.R8I]: gl.RED_INTEGER,
-			[gl.R8UI]: gl.RED_INTEGER,
-			[gl.R16I]: gl.RED_INTEGER,
-			[gl.R16UI]: gl.RED_INTEGER,
-			[gl.RG32I]: gl.RG_INTEGER,
-			[gl.R32UI]: gl.RED_INTEGER,
-			[gl.RG8I]: gl.RG_INTEGER,
-			[gl.RG8UI]: gl.RG_INTEGER,
-			[gl.RG16I]: gl.RG_INTEGER,
-			[gl.RG16UI]: gl.RG_INTEGER,
-			[gl.RG32I]: gl.RG_INTEGER,
-			[gl.RG32UI]: gl.RG_INTEGER,
-			[gl.RGBA8I]: gl.RGBA_INTEGER,
-			[gl.RGBA8UI]: gl.RGBA_INTEGER,
-			[gl.RGBA16I]: gl.RGBA_INTEGER,
-			[gl.RGBA16UI]: gl.RGBA_INTEGER,
-			[gl.RGBA32I]: gl.RGBA_INTEGER,
-			[gl.RGBA32UI]: gl.RGBA_INTEGER,
-			[gl.RGBA]: gl.RGBA,
-			[gl.RGB]: gl.RGB,
-		};
-		return internalFormatToFormat[internalFormat];
-	}
+		return internalFormatsInfo[internalFormat].format;
+	};
 
 	function getType(internalFormat, type = null) {
-		let internalFormatToType = {
-			[gl.RGBA32F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-			},
-			[gl.R11F_G11F_B10F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-				[gl.HALF_FLOAT]: gl.HALF_FLOAT,
-				[gl.UNSIGNED_INT_10F_11F_11F_REV]: gl.UNSIGNED_INT_10F_11F_11F_REV,
-			},
-			[gl.RG32F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-			},
-			[gl.R32F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-			},
-			[gl.RGBA16F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-				[gl.HALF_FLOAT]: gl.HALF_FLOAT,
-			},
-			[gl.RG16F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-				[gl.HALF_FLOAT]: gl.HALF_FLOAT,
-			},
-			[gl.R16F]: {
-				default: gl.FLOAT,
-				[gl.FLOAT]: gl.FLOAT,
-				[gl.HALF_FLOAT]: gl.HALF_FLOAT,
-			},
-			[gl.R8]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RG8]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RGB8]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RGB565]: {
-				default: gl.UNSIGNED_SHORT_5_6_5,
-				[gl.UNSIGNED_SHORT_5_6_5]: gl.UNSIGNED_SHORT_5_6_5,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RGBA4]: {
-				default: gl.UNSIGNED_SHORT_4_4_4_4,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_SHORT_4_4_4_4]: gl.UNSIGNED_SHORT_4_4_4_4,
-			},
-			[gl.RGB5_A1]: {
-				default: gl.UNSIGNED_SHORT_5_5_5_1,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_SHORT_5_5_5_1]: gl.UNSIGNED_SHORT_5_5_5_1,
-			},
-			[gl.RGBA8]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RGB10_A2]: {
-				default: gl.UNSIGNED_INT_2_10_10_10_REV,
-				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV,
-			},
-			[gl.RGB10_A2UI]: {
-				default: gl.UNSIGNED_INT_2_10_10_10_REV,
-				[gl.UNSIGNED_INT_2_10_10_10_REV]: gl.UNSIGNED_INT_2_10_10_10_REV,
-			},
-			[gl.SRGB8_ALPHA8]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.R8I]: {
-				default: gl.BYTE,
-				[gl.BYTE]: gl.BYTE,
-			},
-			[gl.R8UI]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.R16I]: {
-				default: gl.SHORT,
-				[gl.SHORT]: gl.SHORT,
-			},
-			[gl.R16UI]: {
-				default: gl.UNSIGNED_SHORT,
-				[gl.UNSIGNED_SHORT]: gl.UNSIGNED_SHORT,
-			},
-			[gl.RG32I]: {
-				default: gl.INT,
-				[gl.INT]: gl.INT,
-			},
-			[gl.R32UI]: {
-				default: gl.UNSIGNED_INT,
-				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT,
-			},
-			[gl.RG8I]: {
-				default: gl.BYTE,
-				[gl.BYTE]: gl.BYTE,
-			},
-			[gl.RG32I]: {
-				default: gl.INT,
-				[gl.INT]: gl.INT,
-			},
-			[gl.RG32UI]: {
-				default: gl.UNSIGNED_INT,
-				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT,
-			},
-			[gl.RGBA8I]: {
-				default: gl.BYTE,
-				[gl.BYTE]: gl.BYTE,
-			},
-			[gl.RGBA8UI]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-			},
-			[gl.RGBA16I]: {
-				default: gl.SHORT,
-				[gl.SHORT]: gl.SHORT,
-			},
-			[gl.RGBA16UI]: {
-				default: gl.UNSIGNED_SHORT,
-				[gl.UNSIGNED_SHORT]: gl.UNSIGNED_SHORT,
-			},
-			[gl.RGBA32I]: {
-				default: gl.INT,
-				[gl.INT]: gl.INT,
-			},
-			[gl.RGBA32UI]: {
-				default: gl.UNSIGNED_INT,
-				[gl.UNSIGNED_INT]: gl.UNSIGNED_INT,
-			},
-			[gl.RGBA]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_SHORT_4_4_4_4]: gl.UNSIGNED_SHORT_4_4_4_4,
-				[gl.UNSIGNED_SHORT_5_5_5_1]: gl.UNSIGNED_SHORT_5_5_5_1,
-			},
-			[gl.RGB]: {
-				default: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_BYTE]: gl.UNSIGNED_BYTE,
-				[gl.UNSIGNED_SHORT_5_6_5]: gl.UNSIGNED_SHORT_5_6_5,
-			},
-		};
-		if (type == null) {
-			return internalFormatToType[internalFormat].default;
-		}
-		return internalFormatToType[internalFormat][type];
-	}
+		return internalFormatsInfo[internalFormat].type[type || 'default'];
+	};
 
-	function getShaderDataType(internalFormat) {
-		let internalFormatToShaderType = {
-			[gl.RGBA32F]: 'vec4',
-			[gl.R11F_G11F_B10F]: 'vec3',
-			[gl.RG32F]: 'vec2',
-			[gl.R32F]: 'float',
-			[gl.RGBA16F]: 'vec4',
-			[gl.RG16F]: 'vec2',
-			[gl.R16F]: 'float',
-			[gl.R8]: 'float',
-			[gl.RG8]: 'vec2',
-			[gl.RGB8]: 'vec3',
-			[gl.RGB565]: 'vec3',
-			[gl.RGBA4]: 'vec4',
-			[gl.RGB5_A1]: 'vec4',
-			[gl.RGBA8]: 'vec4',
-			[gl.RGB10_A2]: 'vec4',
-			[gl.RGB10_A2UI]: 'vec4',
-			[gl.SRGB8_ALPHA8]: 'vec4',
-			[gl.R8I]: 'int',
-			[gl.R8UI]: 'uint',
-			[gl.R16I]: 'int',
-			[gl.R16UI]: 'uint',
-			[gl.RG32I]: 'ivec2',
-			[gl.R32UI]: 'uint',
-			[gl.RG8I]: 'ivec2',
-			[gl.RG8UI]: 'uvec2',
-			[gl.RG16I]: 'ivec2',
-			[gl.RG16UI]: 'uvec2',
-			[gl.RG32I]: 'ivec2',
-			[gl.RG32UI]: 'uvec2',
-			[gl.RGBA8I]: 'ivec4',
-			[gl.RGBA8UI]: 'uvec4',
-			[gl.RGBA16I]: 'ivec4',
-			[gl.RGBA16UI]: 'uvec4',
-			[gl.RGBA32I]: 'ivec4',
-			[gl.RGBA32UI]: 'uvec4',
-			[gl.RGBA]: 'vec4',
-			[gl.RGB]: 'vec3',
-		};
-		return internalFormatToShaderType[internalFormat];
-	}
+	function getShaderDataType(shaderDataFormat, channels) {
+		return shaderDataFormatInfo[shaderDataFormat].shaderDataType[channels];
+	};
 
-	function getArrayType(internalFormat, arrayType = null) {
-		let internalFormatToArrayType = {
-			[gl.RGBA32F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.R11F_G11F_B10F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RG32F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.R32F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGBA16F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RG16F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.R16F]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.R8]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RG8]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGB8]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGB565]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGBA4]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGB5_A1]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGBA8]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGB10_A2]: {
-				default: Float32Array,
-				[Float32Array]: Float32Array,
-			},
-			[gl.RGB10_A2UI]: {
-				default: Uint8ClampedArray,
-				[Uint32Array]: Uint32Array,
-				[Uint8ClampedArray]: Uint8ClampedArray,
-			},
-			[gl.SRGB8_ALPHA8]: {
-				default: Uint32Array,
-				[Float32Array]: Uint32Array,
-			},
-			[gl.R8I]: {
-				default: Int8Array,
-				[Int8Array]: Int8Array,
-			},
-			[gl.R8UI]: {
-				default: Uint8Array,
-				[Uint8Array]: Uint8Array,
-			},
-			[gl.R16I]: {
-				default: Int16Array,
-				[Int16Array]: Int16Array,
-			},
-			[gl.R16UI]: {
-				default: Uint16Array,
-				[Uint16Array]: Uint16Array,
-			},
-			[gl.RG32I]: {
-				default: Int32Array,
-				[Int32Array]: Int32Array,
-			},
-			[gl.R32UI]: {
-				default: Uint32Array,
-				[Uint32Array]: Uint32Array,
-			},
-			[gl.RG8I]: {
-				default: Int8Array,
-				[Int8Array]: Int8Array,
-			},
-			[gl.RG8UI]: {
-				default: Uint8Array,
-				[Uint8Array]: Uint8Array,
-			},
-			[gl.RG16I]: {
-				default: Int16Array,
-				[Int16Array]: Int16Array,
-			},
-			[gl.RG16UI]: {
-				default: Uint16Array,
-				[Uint16Array]: Uint16Array,
-			},
-			[gl.RGBA8I]: {
-				default: Int8Array,
-				[Int8Array]: Int8Array,
-			},
-			[gl.RGBA8UI]: {
-				default: Uint8Array,
-				[Uint8Array]: Uint8Array,
-			},
-			[gl.RGBA16I]: {
-				default: Int16Array,
-				[Int16Array]: Int16Array,
-			},
-			[gl.RGBA16UI]: {
-				default: Uint16Array,
-				[Uint16Array]: Uint16Array,
-			},
-			[gl.RGBA32I]: {
-				default: Int32Array,
-				[Int32Array]: Int32Array,
-			},
-			[gl.RGBA32UI]: {
-				default: Uint32Array,
-				[Uint32Array]: Uint32Array,
-			},
-			[gl.RGBA]: {
-				default: Uint8Array,
-				[Uint8Array]: Uint8Array,
-			},
-			[gl.RGB]: {
-				default: Uint8Array,
-				[Uint8Array]: Uint8Array,
-			},
-		};
-		if (arrayType == null) {
-			return internalFormatToArrayType[internalFormat].default;
-		}
-		return internalFormatToArrayType[internalFormat][arrayType];
-	}
+	function getArrayType(type) {
+		return typeInfo[type].arrayType;
+	};
 
-	function BufferParams(shape, internalFormat, type = null, arrayType = null) {
+	function getShaderDataFormat(internalFormat) {
+		return internalFormatsInfo[internalFormat].shaderDataFormat;
+	};
+
+	function getSamplerDataType(shaderDataFormat) {
+		return shaderDataFormatInfo[shaderDataFormat].samplerDataType;
+	};
+
+	function getBaseShaderDataType(shaderDataFormat) {
+		return shaderDataFormatInfo[shaderDataFormat].base;
+	};
+
+	function BufferParams(shape, internalFormat, type = null) {
 		this.size = getShapedArraySize(shape);
 		this.shape = shape;
 		this.internalFormat = internalFormat;
-		this.stride = getStride(internalFormat);
-		this.texSize = getTexSize(this.size, this.stride);
 		this.format = getFormat(internalFormat);
+		this.stride = getStride(this.format);
+		this.texSize = getTexSize(this.size, this.stride);
 		this.type = getType(internalFormat, type);
-		this.shaderDataType = getShaderDataType(internalFormat);
-		this.arrayType = getArrayType(internalFormat, arrayType);
+		this.shaderDataFormat = getShaderDataFormat(internalFormat);
+		this.shaderDataType = getShaderDataType(this.shaderDataFormat, this.stride);
+		this.arrayType = getArrayType(this.type);
+		this.samplerDataType = getSamplerDataType(this.shaderDataFormat);
+		this.baseShaderDataType = getBaseShaderDataType(this.shaderDataFormat);
 	}
 	function getFrameBufferStatusMsg(frameBufferStatus) {
 		if (frameBufferStatus == gl.FRAMEBUFFER_COMPLETE) return 'The framebuffer is ready to display.';
@@ -979,8 +719,8 @@ export function GPU(canvas = null) {
 			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
 		);
 	}
-	function Buffer(shape, arr = null, internalFormat = gl.RG8, type = null, arrayType = null) {
-		let params = new BufferParams(shape, internalFormat, type, arrayType);
+	function Buffer(shape, arr = null, internalFormat = gl.RG8UI, type = null) {
+		let params = new BufferParams(shape, internalFormat, type);
 		let size = params.size;
 		let texSize = params.texSize;
 		let stride = params.stride;
@@ -1063,7 +803,12 @@ export function GPU(canvas = null) {
 		this.params = params;
 		this.texture = texture;
 	}
-	function Program(inpParams, opParams, code, libCode = '', pixelCode = '') {
+	function Program(inpParams, opParams, code, libCode = '', pixelCode = '', fullFragmentCode = null) {
+		if (opParams.length == 0) {
+			opParams = [
+				new BufferParams([gl.canvas.width, gl.canvas.height, 4], gl.RGBA)
+			];
+		}
 		let inpShapes = inpParams.map(x => x.shape);
 		let opShapes = opParams.map(x => x.shape);
 		let inpSize = inpParams.map(x => x.size);
@@ -1084,21 +829,20 @@ export function GPU(canvas = null) {
 		}
 
 		let sizeO = opParams[0].texSize;
-		let fragmentShaderCode = `#version 300 es
+		let fragmentShaderCode = fullFragmentCode || `#version 300 es
 		precision highp float;
 		${inpSize.length ? `float _webcl_inpSize[${inpSize.length}] = float[](${inpSize.join('.,')}.);` : ''}
 		float _webcl_opSize[${opSize.length}] = float[](${opSize.join('.,')}.);
 		float _webcl_opStride[${opStride.length}] = float[](${opStride.join('.,')}.);
 		${inpStride.length ? `float _webcl_inpStride[${inpStride.length}] = float[](${inpStride.join('.,')}.);` : ''}
-		${inpTexSize.length ? `float _webcl_sizeI[${inpTexSize.length}] = float[](${inpTexSize.map(x => x + '.').join(',')});\nuniform sampler2D _webcl_uTexture[${inpTexSize.length}];` : ''}
+		${inpTexSize.length ? `float _webcl_sizeI[${inpTexSize.length}] = float[](${inpTexSize.map(x => x + '.').join(',')});` : ''}
+		${inpParams.map((x, i) => `uniform highp ${x.samplerDataType} _webcl_uTexture${i};`).join('\n')}
 		float _webcl_sizeO = ${sizeO}.;
 		in vec2 _webcl_pos;
 		#define _webcl_getTexIndex() ( (_webcl_pos.y*_webcl_sizeO - 0.5)*_webcl_sizeO + (_webcl_pos.x*_webcl_sizeO - 0.5) )
         #define _webcl_getFlatIndex(n) (_webcl_getTexIndex()*_webcl_opStride[n] + _webcl_i)
 		${opParams.map((x, i) => `layout(location = ${i}) out ${x.shaderDataType} _webcl_out${i};`).join('\n')}
-		
-		#define _webcl_readInFlat(n,i) texture(_webcl_uTexture[n], (0.5 + vec2(mod(floor(i/_webcl_inpStride[n]), _webcl_sizeI[n]), floor(floor(i/_webcl_inpStride[n])/_webcl_sizeI[n])))/_webcl_sizeI[n])[int(mod(i, _webcl_inpStride[n]))]
-		${inpSize.map((x, i) => `#define _webcl_readInFlat${i}(i) _webcl_readInFlat(${i},i)`).join('\n')}
+		${inpSize.map((x, i) => `#define _webcl_readInFlat${i}(i) texture(_webcl_uTexture${i}, (0.5 + vec2(mod(floor(i/_webcl_inpStride[${i}]), _webcl_sizeI[${i}]), floor(floor(i/_webcl_inpStride[${i}])/_webcl_sizeI[${i}])))/_webcl_sizeI[${i}])[int(mod(i, _webcl_inpStride[${i}]))]`).join('\n')}
 		${opParams.map((x, i) => `#define _webcl_commitFlat${i}(val) _webcl_out${i}${x.shaderDataType !== 'float' ? '[_webcl_I]' : ''} = val * _webcl_mask${i}`).join('\n')}
 		${inpParams.map((x, i) => generateIndexMacro(x, 'In' + i)).join('\n')}
 		${opParams.map((x, i) => generateIndexMacro(x, 'Out' + i)).join('\n')}
@@ -1128,7 +872,7 @@ export function GPU(canvas = null) {
 								float _webcl_index${i}[${x.shape.length}];
 								float _webcl_flatIndex${i} = floor(_webcl_getFlatIndex(${i})); 
 								_webcl_getShapedIndexOut${i}(_webcl_flatIndex${i}, _webcl_index${i});
-								float _webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+								${x.baseShaderDataType} _webcl_mask${i} = ${x.baseShaderDataType !== 'float' ? x.baseShaderDataType : ''}(step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]));
 							`
 				} else {
 					// if(x.stride == channel_index){
@@ -1144,7 +888,7 @@ export function GPU(canvas = null) {
 						return `
 									_webcl_flatIndex${i} += 1.;
 									_webcl_nextShapedIndexOut${i}(_webcl_index${i});
-									_webcl_mask${i} = step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]);
+									_webcl_mask${i} = ${x.baseShaderDataType !== 'float' ? x.baseShaderDataType : ''}(step(_webcl_flatIndex${i}+0.5, _webcl_opSize[${i}]));
 								`;
 					}
 				}
@@ -1157,11 +901,10 @@ export function GPU(canvas = null) {
 			return out;
 		}).join('\n')
 			}
-				
 		}
 		`;
-		console.log(vertexShaderCode);
-		console.log(fragmentShaderCode);
+		// console.log(vertexShaderCode);
+		// console.log(fragmentShaderCode);
 		let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 
 		gl.shaderSource(
@@ -1183,27 +926,38 @@ export function GPU(canvas = null) {
 
 
 		this.new = function (newInpSize, newOpSize) {
-			return new Program(newInpSize, newOpSize, code);
+			return new Program(newInpSize, newOpSize, code, libCode, pixelCode, fullFragmentCode);
 		}
 		let fbo = null;
-		this.exec = function (inp, op, transferOutput = false, transferIndices = null, previewIndex = 0) {
+		const drawPrograms = {};
+		let lastOp = null;
+		this.exec = function (inp, op, previewIndex = 0, scaleToCanvas = true, transferOutput = false, transferIndices = null) {
 			gl.linkProgram(program);
 			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
 				throw new Error('ERROR: Can not link GLSL program!');
 			let v_texture = [];
 			for (let i = 0; i < inp.length; i++) {
-				v_texture.push(gl.getUniformLocation(program, '_webcl_uTexture[' + i + ']'));
+				v_texture.push(gl.getUniformLocation(program, '_webcl_uTexture' + i));
 			}
 			let aPosition = gl.getAttribLocation(program, '_webcl_position');
 			let aTexture = gl.getAttribLocation(program, '_webcl_texture');
-			gl.viewport(0, 0, sizeO, sizeO);
-			fbo = fbo || gl.createFramebuffer();
-			gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 			let colAt = [];
-			for (let i = 0; i < op.length; i++) {
-				op[i].alloc();
-				gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, op[i].texture, 0);
-				colAt.push(gl.COLOR_ATTACHMENT0 + i);
+			gl.viewport(0, 0, sizeO, sizeO);
+			if (op.length > 0) {
+				fbo = fbo || gl.createFramebuffer();
+				gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+				for (let i = 0; i < op.length; i++) {
+					op[i].alloc();
+					gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, op[i].texture, 0);
+					colAt.push(gl.COLOR_ATTACHMENT0 + i);
+					gl.drawBuffers(colAt);
+				}
+			} else {
+				if (scaleToCanvas) {
+					gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+				}
+				fbo = null;
+				gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 			}
 			let frameBufferStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 			if (frameBufferStatus !== gl.FRAMEBUFFER_COMPLETE) {
@@ -1216,9 +970,6 @@ export function GPU(canvas = null) {
 			gl.enableVertexAttribArray(aPosition);
 			gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-
-			gl.drawBuffers(colAt);
-
 
 			gl.useProgram(program);
 			for (let i = 0; i < inp.length; i++) {
@@ -1241,23 +992,51 @@ export function GPU(canvas = null) {
 					}
 				}
 			}
+			lastOp = op;
 			if (previewIndex !== null && previewIndex < op.length) {
-				// console.log("previewIndex", previewIndex);
+				this.preview(previewIndex);
+			}
+		}
+
+		this.preview = function (previewIndex) {
+			if (lastOp == null) {
+				throw new Error("No output to preview!");
+			}
+			const shaderDataFormat = opParams[previewIndex].shaderDataFormat;
+			if (shaderDataFormat == gl.FLOAT) {
 				gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
 				gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 				gl.readBuffer(gl.COLOR_ATTACHMENT0 + previewIndex);
-
 				// gl.canvas.width = op[previewIndex].texSize;
 				// gl.canvas.height = op[previewIndex].texSize;
 				// console.log("canvas", gl.canvas.width, gl.canvas.height);
 				gl.blitFramebuffer(
-					0, 0, op[previewIndex].params.texSize, op[previewIndex].params.texSize,  // source
+					0, 0, opParams[previewIndex].texSize, opParams[previewIndex].texSize,  // source
 					0, 0, gl.canvas.width, gl.canvas.height,                    // dest
 					gl.COLOR_BUFFER_BIT,
 					gl.NEAREST
 				);
+			} else {
+				console.warn("not recommended to preview uint or int textures.");
+				this.previewViaProgram(previewIndex);
 			}
-
+		}
+		this.previewViaProgram = function (previewIndex) {
+			if (lastOp == null) {
+				throw new Error("No output to preview!");
+			}
+			let drawProg = drawPrograms[previewIndex];
+			if (!drawProg) {
+				drawProg = new Program([opParams[previewIndex]], [],
+					``,
+					``,
+					`
+						_webcl_out0 = vec4(texture(_webcl_uTexture0, _webcl_pos).rgba);
+						`
+				);
+				drawPrograms[previewIndex] = drawProg;
+			}
+			drawProg.exec([lastOp[previewIndex]], []);
 		}
 
 		this.free = function () {
@@ -1267,12 +1046,12 @@ export function GPU(canvas = null) {
 		}
 	}
 
-	this.Buffer = function (shape, arr = null) {
-		return new Buffer(shape, arr);
+	this.Buffer = function (shape, arr = null, internalFormat = gl.RG8UI, type = null) {
+		return new Buffer(shape, arr, internalFormat, type);
 	}
 
-	this.Program = function (inp, op, code, libCode = '', pixelCode = '',) {
-		return new Program(inp, op, code, libCode, pixelCode);
+	this.Program = function (inpParams, opParams, code, libCode = '', pixelCode = '') {
+		return new Program(inpParams, opParams, code, libCode, pixelCode);
 	}
 
 }
