@@ -142,3 +142,4 @@ Notes:
 - ~~preview support for uint/int textures~~
 - ~~preview support for float textures~~
 - ~~viewport configuration support~~
+- update readme
