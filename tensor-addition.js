@@ -14,9 +14,9 @@ let mat2 = [
 	[[0,0,1],[0,0,0]],
 	[[0,0,0],[1,0,0]],
 ].map(x=>x.map(y=>y.map(z=>z/10)));
-let matBuf1 = new myGPU.Buffer([4,2,3], mat1);
-let matBuf2 = new myGPU.Buffer([4,2,3], mat2);
-let matSum = new myGPU.Buffer([4,2,3]);
+let matBuf1 = new myGPU.Lattice([4,2,3], mat1);
+let matBuf2 = new myGPU.Lattice([4,2,3], mat2);
+let matSum = new myGPU.Lattice([4,2,3]);
 matBuf1.alloc();
 matBuf2.alloc();
 // matSq.alloc();

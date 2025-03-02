@@ -8,8 +8,8 @@ const grid_size = 64;
 //     )
 // );
 const gl = myGPU.gl;
-let buf1 = new myGPU.Buffer([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
-let buf2 = new myGPU.Buffer([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
+let buf1 = new myGPU.Lattice([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
+let buf2 = new myGPU.Lattice([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
 buf1.alloc();
 buf2.alloc();
 let seed = Math.random()*10000;

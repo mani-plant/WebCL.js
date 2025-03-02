@@ -22,9 +22,9 @@ let mat2 = [
 	[[0,0,1],[0,0,0]],
 	[[0,0,0],[1,0,0]],
 ].map(x=>x.map(y=>y.map(z=>z/10)));
-let matBuf1 = new myGPU.Buffer([4,2,3], mat1); // GPU memory of shape [4,2,3] with mat1 as data (data is still on CPU) 
-let matBuf2 = new myGPU.Buffer([4,2,3], mat2);
-let matSum = new myGPU.Buffer([4,2,3]); // for output
+let matBuf1 = new myGPU.Lattice([4,2,3], mat1); // GPU memory of shape [4,2,3] with mat1 as data (data is still on CPU) 
+let matBuf2 = new myGPU.Lattice([4,2,3], mat2);
+let matSum = new myGPU.Lattice([4,2,3]); // for output
 
 matBuf1.alloc(); //allocate memory on GPU - transfers data from CPU to GPU
 matBuf2.alloc(); 
@@ -64,10 +64,10 @@ var myGPU = new GPU();
 Every GPU instance is independent of other GPU instances.
 A GPU instance can be used to create Buffers which corrosponds to Memory on GPU and Programs which run in parallel on GPU
 
-## Buffer
-Buffers are memory on GPU, initialize a buffer by putting values in Buffer.data Float32Array, and use Buffer.alloc and Buffer.delete to allocate memory on GPU for Buffer.data and delete it respectively.
+## Lattice
+Buffers are memory on GPU, initialize a buffer by putting values in Lattice.data Float32Array, and use Lattice.alloc and Lattice.delete to allocate memory on GPU for Lattice.data and delete it respectively.
 ```
-var buffer1 = myGPU.Buffer(shape, shaped_js_array) // shaped_js_array is optional, can be passed as buffer1.set(shaped_js_array) later too
+var buffer1 = myGPU.Lattice(shape, shaped_js_array) // shaped_js_array is optional, can be passed as buffer1.set(shaped_js_array) later too
 
 buffer1.alloc();
 //send buffer1.data to GPU
@@ -129,8 +129,8 @@ Notes:
 - access format support (vec2, vec3, vec4, ivec2, ivec3, ivec4, uvec2, uvec3, uvec4)
 - ~custom internal formats and types support~
 - depth and stencil buffer support
-- readonly Buffer support (texStorage)
-- write only Buffer support (renderBuffer)
+- readonly Lattice support (texStorage)
+- write only Lattice support (renderBuffer)
 - program default precision support
 - variables precision support - auto/manual
 - custom texture size, and mipmap support
