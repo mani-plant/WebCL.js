@@ -1,14 +1,15 @@
 import {GPU} from './WebCL.js';
-var canvas = document.getElementById('canvas');
-var myGPU = new GPU(canvas);
+const canvas = document.getElementById('canvas');
+const myGPU = new GPU(canvas);
 const grid_size = 64;
 // let initial_state = new Array(grid_size).fill(0).map(
 //     () => new Array(grid_size).fill(0).map(
 //         () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
 //     )
 // );
-let buf1 = new myGPU.Buffer([grid_size, grid_size, 4]);
-let buf2 = new myGPU.Buffer([grid_size, grid_size, 4]);
+const gl = myGPU.gl;
+let buf1 = new myGPU.Buffer([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
+let buf2 = new myGPU.Buffer([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
 buf1.alloc();
 buf2.alloc();
 let seed = Math.random()*10000;
@@ -22,11 +23,11 @@ let init_prog = new myGPU.Program([], [buf1.params],
     float op = step(0.9, seed);
     _webcl_commitOut0(op);
     #endif
-    `,`
-    #define gen_seed(val) (sin(val) * ${seed})
-    `
+    `,{
+        libCode:`#define gen_seed(val) (sin(val) * ${seed})`
+    }
 );
-init_prog.exec([], [buf1]);
+init_prog.exec([], [buf1], {});
 let matProg = new myGPU.Program([buf1.params], [buf2.params], 
     `
     // _webcl_commitOut0(1.);
@@ -51,7 +52,8 @@ let matProg = new myGPU.Program([buf1.params], [buf2.params],
     float op = (me_alive * neighbour_state) + (me_dead * birth_state);
     _webcl_commitOut0((op*is_ca) + (is_not_ca));
     #endif
-    `
+    `,
+    {}
 );
 let frameCount = 0;
 let in_buf  = buf1;
@@ -59,7 +61,7 @@ let out_buf = buf2;
 let prevtimestamp = 0;
 let frameGap = 10;
 function frame(timestamp){
-    matProg.exec([in_buf], [out_buf]);
+    matProg.exec([in_buf], [out_buf], {});
     frameCount++;
     if(frameCount > 100000){
         console.log('done');
