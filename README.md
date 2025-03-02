@@ -143,3 +143,4 @@ Notes:
 - ~~preview support for float textures~~
 - ~~viewport configuration support~~
 - update readme
+- packed types support
