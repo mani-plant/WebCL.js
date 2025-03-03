@@ -20,7 +20,7 @@ let matSum = new myGPU.Lattice([4,2,3]);
 matBuf1.alloc();
 matBuf2.alloc();
 // matSq.alloc();
-let matProg = new myGPU.Program([matBuf1.shape, matBuf2.shape], [matSum.shape], 
+let matProg = new myGPU.Circuit([matBuf1.shape, matBuf2.shape], [matSum.shape], 
 `
 float op = _webcl_readIn0(_webcl_index[0], _webcl_index[1], _webcl_index[2]) + _webcl_readIn1(_webcl_index[0], _webcl_index[1], _webcl_index[2]);
 _webcl_commitOut0(op);

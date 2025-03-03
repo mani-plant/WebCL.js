@@ -30,16 +30,16 @@ matBuf1.alloc(); //allocate memory on GPU - transfers data from CPU to GPU
 matBuf2.alloc(); 
 
 ```
-###### Create a GPU Program
+###### Create a GPU Circuit
 ```
-let matProg = new myGPU.Program([matBuf1.shape, matBuf2.shape], [matSum.shape], 
+let matProg = new myGPU.Circuit([matBuf1.shape, matBuf2.shape], [matSum.shape], 
 `
 float op = _webcl_readIn0(_webcl_index[0], _webcl_index[1], _webcl_index[2]) + _webcl_readIn1(_webcl_index[0], _webcl_index[1], _webcl_index[2]);
 _webcl_commitOut0(op);
 `
 );
 ```
-###### Execute the Program on GPU
+###### Execute the Circuit on GPU
 ```
 matProg.exec([matBuf1, matBuf2], [matSum]);
 ```
@@ -76,13 +76,13 @@ buffer1.free();
 //free GPU memory occupied during alloc
 ```
 
-## Program
+## Circuit
 Programs are fragment shader code in Open GL ES 3. These run on GPU in parallel for each output element.
 ```
-//myGPU.Program([input buffers shapes],[ouput buffers shapes],`shader program string`);
+//myGPU.Circuit([input buffers shapes],[ouput buffers shapes],`shader program string`);
 ```
 Shader program is executed once for each output.
-#### Shader Program
+#### Shader Circuit
 The following functions are available in shader program to access input and in-out buffers.
 ###### 1. Get current index: 
 ```_webcl_index[dim]```
@@ -99,7 +99,7 @@ _webcl_readIn0(float index)
 _webcl_commitOut1(val); // set outputBuffers[1] = val;
 // general form: _webcl_commitOut<N>(val); // set outputBuffers[N] = val;
 ```
-#### Execute Program
+#### Execute Circuit
 ```
 myProg.exec([inputBuffers], [outputBuffers]);
 

@@ -1,21 +1,36 @@
-import * as clUtils from './webgl/utils.js';
-import * as clTypes from './webgl/types.js';
-import * as clBuffer from './webgl/buffer.js';
-import * as clProgram from './webgl/program.js';
+import * as clUtils from './lib/utils.js';
+import * as clTypes from './lib/types.js';
+import * as clBuffer from './lib/lattice.js';
+import * as clProgram from './lib/circuit.js';
 
+function glCreateBuffer(gl, data, { bufferType = gl.ARRAY_BUFFER, usage = gl.STATIC_DRAW, arrayType = Float32Array }){
+	const buf = gl.createBuffer();
+	gl.bindBuffer(bufferType, buf);
+	gl.bufferData(bufferType, new arrayType(data), usage);
+		return buf;
+	}
+
+function glCreateVertexShader(gl, vertexShaderCode){
+	const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+	gl.shaderSource(vertexShader, vertexShaderCode);
+	gl.compileShader(vertexShader);
+	if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+		throw new Error(
+			"\nError: Vertex shader build failed\n" + "\n" +
+			"--- CODE DUMP ---\n" + vertexShaderCode + "\n\n" +
+			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
+		);
+	}
+	return vertexShader;
+}
 function GPU(canvas = null) {
 	const gpu = this;
 	const gl = clUtils.glInit(canvas || document.createElement('canvas'));
 	const typesInfo = Object.freeze(clTypes.getTypesInfo(gl));
-	function newBuffer(data, f, e) {
-		const buf = gl.createBuffer();
-		gl.bindBuffer((e || gl.ARRAY_BUFFER), buf);
-		gl.bufferData((e || gl.ARRAY_BUFFER), new (f || Float32Array)(data), gl.STATIC_DRAW);
-		return buf;
-	}
-	const positionBuffer = newBuffer([-1, -1, 1, -1, 1, 1, -1, 1]);
-	const textureBuffer = newBuffer([0, 0, 1, 0, 1, 1, 0, 1]);
-	const indexBuffer = newBuffer([1, 2, 0, 3, 0, 2], Uint16Array, gl.ELEMENT_ARRAY_BUFFER);
+	
+	const positionBuffer = glCreateBuffer(gl, [-1, -1, 1, -1, 1, 1, -1, 1], {arrayType: Float32Array}); // position buffer - position of the vertices
+	const textureBuffer = glCreateBuffer(gl, [0, 0, 1, 0, 1, 1, 0, 1], {arrayType: Float32Array}); // texture buffer - texture coordinates
+	const indexBuffer = glCreateBuffer(gl, [1, 2, 0, 3, 0, 2], {arrayType: Uint16Array, bufferType: gl.ELEMENT_ARRAY_BUFFER}); // for draw call
 
 	const vertexShaderCode = `#version 300 es
 		precision highp float;
@@ -27,16 +42,7 @@ function GPU(canvas = null) {
 			gl_Position = vec4(_webcl_position.xy, 0.0, 1.0);
 		}
 	`;
-	const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-	gl.shaderSource(vertexShader, vertexShaderCode);
-	gl.compileShader(vertexShader);
-	if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-		throw new Error(
-			"\nError: Vertex shader build failed\n" + "\n" +
-			"--- CODE DUMP ---\n" + vertexShaderCode + "\n\n" +
-			"--- ERROR LOG ---\n" + gl.getShaderInfoLog(vertexShader)
-		);
-	}
+	const vertexShader = glCreateVertexShader(gl, vertexShaderCode);
 
 	this.free = function () {
 		gl.deleteShader(vertexShader);
@@ -65,8 +71,8 @@ function GPU(canvas = null) {
 		return new clBuffer.Lattice(gpu, shape, { arr, internalFormat, type });
 	}
 
-	this.Program = function (inpParams, opParams, code, { libCode = '', pixelCode = '', fullFragmentCode = null }) {
-		return new clProgram.Program(gpu, inpParams, opParams, code, { libCode, pixelCode, fullFragmentCode });
+	this.Circuit = function (inpParams, opParams, code, { libCode = '', pixelCode = '', fullFragmentCode = null }) {
+		return new clProgram.Circuit(gpu, inpParams, opParams, code, { libCode, pixelCode, fullFragmentCode });
 	}
 }
 

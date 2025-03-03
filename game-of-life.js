@@ -13,7 +13,7 @@ let buf2 = new myGPU.Lattice([grid_size, grid_size, 4], {internalFormat: gl.RGBA
 buf1.alloc();
 buf2.alloc();
 let seed = Math.random()*10000;
-let init_prog = new myGPU.Program([], [buf1.params],
+let init_prog = new myGPU.Circuit([], [buf1.params],
     `
     #ifdef _webcl_available_out0
     float ix = _webcl_index0[0];
@@ -28,7 +28,7 @@ let init_prog = new myGPU.Program([], [buf1.params],
     }
 );
 init_prog.exec([], [buf1], {});
-let matProg = new myGPU.Program([buf1.params], [buf2.params], 
+let matProg = new myGPU.Circuit([buf1.params], [buf2.params], 
     `
     // _webcl_commitOut0(1.);
     #ifdef _webcl_available_out0
