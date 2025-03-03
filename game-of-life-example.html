@@ -181,6 +181,12 @@
             isLogging = true;
 
             try {
+                // Log to original console with appropriate method
+                switch(type) {
+                    case 'ERROR': originalConsole.error(...args); break;
+                    case 'WARNING': originalConsole.warn(...args); break;
+                    default: originalConsole.log(...args);
+                }
                 const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
                 const msg = args.map(arg => 
                     typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
@@ -200,12 +206,9 @@
                 output.innerHTML += `\n<span class="${color}">${line}</span>`;
                 output.scrollTop = output.scrollHeight;
 
-                // Log to original console with appropriate method
-                switch(type) {
-                    case 'ERROR': originalConsole.error(...args); break;
-                    case 'WARNING': originalConsole.warn(...args); break;
-                    default: originalConsole.log(...args);
-                }
+                
+            } catch(e){
+                console.error(e);
             } finally {
                 isLogging = false;
             }
