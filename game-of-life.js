@@ -1,19 +1,26 @@
 import {GPU} from './WebCL.js';
 const canvas = document.getElementById('canvas');
+const grid_size = [341, 341];
+// canvas.width = grid_size;
+// canvas.height = grid_size+86;
+
 const myGPU = new GPU(canvas);
-const grid_size = 64;
+
 // let initial_state = new Array(grid_size).fill(0).map(
 //     () => new Array(grid_size).fill(0).map(
 //         () => [Math.random() > 0.5 ? 1 : 0, Math.random() > 0.25 ? 1 : 0, Math.random() > 0.75 ? 1 : 0, 1]
 //     )
 // );
 const gl = myGPU.gl;
-let buf1 = new myGPU.Lattice([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
-let buf2 = new myGPU.Lattice([grid_size, grid_size, 4], {internalFormat: gl.RGBA8});
+let buf1 = new myGPU.Lattice([grid_size[0], grid_size[1], 4], {internalFormat: gl.RGBA8});
+let buf2 = new myGPU.Lattice([grid_size[0], grid_size[1], 4], {internalFormat: gl.RGBA8});
 buf1.alloc();
 buf2.alloc();
 let seed = Math.random()*10000;
-let init_prog = new myGPU.Circuit([], [buf1.params],
+
+const paramsGroup1 = new myGPU.LatticeParamsGroup([]);
+const paramsGroup2 = new myGPU.LatticeParamsGroup([buf1.params]);
+let init_prog = new myGPU.Circuit(paramsGroup1, paramsGroup2,
     `
     #ifdef _webcl_available_out0
     float ix = _webcl_index0[0];
@@ -28,23 +35,24 @@ let init_prog = new myGPU.Circuit([], [buf1.params],
     }
 );
 init_prog.exec([], [buf1], {});
-let matProg = new myGPU.Circuit([buf1.params], [buf2.params], 
+let matProg = new myGPU.Circuit(paramsGroup2, paramsGroup2, 
     `
     // _webcl_commitOut0(1.);
     #ifdef _webcl_available_out0
     float ix = _webcl_index0[0];
+    // float iy = mod(_webcl_index0[1]-1., ${grid_size[0]}.);
     float iy = _webcl_index0[1];
     float iz = _webcl_index0[2];
     float is_ca = step(iz, 2.5);
     float is_not_ca = step(2.5, iz);
-    float alive_count = _webcl_readIn0(mod(ix+1., ${grid_size}.),iy, iz) + 
-                        _webcl_readIn0(mod(ix-1., ${grid_size}.),iy, iz) + 
-                        _webcl_readIn0(ix,mod(iy+1., ${grid_size}.), iz) + 
-                        _webcl_readIn0(ix,mod(iy-1., ${grid_size}.), iz) + 
-                        _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
-                        _webcl_readIn0(mod(ix+1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz) + 
-                        _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy+1., ${grid_size}.), iz) + 
-                        _webcl_readIn0(mod(ix-1., ${grid_size}.),mod(iy-1., ${grid_size}.), iz);
+    float alive_count = _webcl_readIn0(mod(ix+1., ${grid_size[0]}.),iy, iz) + 
+                        _webcl_readIn0(mod(ix-1., ${grid_size[0]}.),iy, iz) + 
+                        _webcl_readIn0(ix,mod(iy+1., ${grid_size[1]}.), iz) + 
+                        _webcl_readIn0(ix,mod(iy-1., ${grid_size[1]}.), iz) + 
+                        _webcl_readIn0(mod(ix+1., ${grid_size[0]}.),mod(iy+1., ${grid_size[1]}.), iz) + 
+                        _webcl_readIn0(mod(ix+1., ${grid_size[0]}.),mod(iy-1., ${grid_size[1]}.), iz) + 
+                        _webcl_readIn0(mod(ix-1., ${grid_size[0]}.),mod(iy+1., ${grid_size[1]}.), iz) + 
+                        _webcl_readIn0(mod(ix-1., ${grid_size[0]}.),mod(iy-1., ${grid_size[1]}.), iz);
     float neighbour_state = step(1.5, alive_count) * step(alive_count, 3.5);
     float me_alive = step(0.5, _webcl_readIn0(ix, iy, iz));
     float me_dead = step(me_alive, 0.5);
