@@ -1,6 +1,6 @@
 import {GPU} from './WebCL.js';
 const canvas = document.getElementById('canvas');
-const grid_size = [341, 341];
+const grid_size = [143, 143];
 // canvas.width = grid_size;
 // canvas.height = grid_size+86;
 
@@ -63,15 +63,33 @@ let matProg = new myGPU.Circuit(paramsGroup2, paramsGroup2,
     `,
     {}
 );
+
+matProg.setViewport({op: [buf1]});
+let fbo1 = matProg.getFbo([buf1]);
+let fbo2 = matProg.getFbo([buf2]);
+matProg.setVao();
+matProg.use();
+// buf1.setActive(0);
+// buf2.setActive(1);
+
 let frameCount = 0;
 let in_buf  = buf1;
 let out_buf = buf2;
 let prevtimestamp = 0;
 let frameGap = 10;
+let inpIndex = 0;
 function frame(timestamp){
-    matProg.exec([in_buf], [out_buf], {});
+    // matProg.exec([in_buf], [out_buf], {});
+    // matProg.setInpIndices([(inpIndex+1)%2]);
+    in_buf.setActive(0);
+    matProg.setFbo(fbo2);
+    matProg.fastExec();
+    matProg.previewFbo(fbo2, {});
+    let tmp = fbo1;
+    fbo1 = fbo2;
+    fbo2 = tmp;
     frameCount++;
-    if(frameCount > 100000){
+    if(frameCount > 10000){
         console.log('done');
         out_buf.read();
         in_buf.read();
